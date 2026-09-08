@@ -24,6 +24,17 @@ function log(message: string) {
   console.log(`[db] ${message}`);
 }
 
+/** The drizzle-kit entry script, resolved from node_modules rather than PATH. */
+function drizzleKitBin(): string {
+  const bin = path.join(process.cwd(), "node_modules", "drizzle-kit", "bin.cjs");
+  if (!fs.existsSync(bin)) {
+    throw new Error(
+      `drizzle-kit not found at ${bin} — run npm ci in the app folder first`,
+    );
+  }
+  return bin;
+}
+
 function open(): MigrationDb {
   fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
   const db = new Database(DB_PATH);
@@ -100,13 +111,17 @@ async function main() {
     db.close();
 
     /* drizzle-kit push is fine here and only here: on an empty database there
-       is nothing to rebuild and no foreign key to trip over. */
+       is nothing to rebuild and no foreign key to trip over.
+
+       Spawned as `node <resolved bin>`, never as `npx`. On Windows, spawning
+       npx.cmd fails with EINVAL — Node will not execute .cmd files without a
+       shell — and this failed on a clean-install rehearsal, which is exactly
+       where it would have struck on the shop laptop. */
     log("creating schema…");
-    execFileSync(
-      process.platform === "win32" ? "npx.cmd" : "npx",
-      ["drizzle-kit", "push", "--force"],
-      { stdio: "inherit", env: { ...process.env, ARSU_DB_PATH: DB_PATH } },
-    );
+    execFileSync(process.execPath, [drizzleKitBin(), "push", "--force"], {
+      stdio: "inherit",
+      env: { ...process.env, ARSU_DB_PATH: DB_PATH },
+    });
 
     db = open();
     ensureLedger(db);
@@ -118,12 +133,10 @@ async function main() {
     log(`stamped ${MIGRATIONS.length} migration(s) as already present`);
     db.close();
 
+    /* Imported, not spawned — one less subprocess, and errors surface here. */
     log("seeding garment types and the letterhead…");
-    execFileSync(
-      process.platform === "win32" ? "npx.cmd" : "npx",
-      ["tsx", "db/seed.ts"],
-      { stdio: "inherit", env: { ...process.env, ARSU_DB_PATH: DB_PATH } },
-    );
+    const { seed } = await import("../db/seed");
+    await seed();
 
     log("fresh install ready");
     return;

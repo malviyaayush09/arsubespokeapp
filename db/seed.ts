@@ -8,6 +8,7 @@
  * type below is editable in the app without touching this file; this is just
  * what the shop starts with on day one.
  */
+import { pathToFileURL } from "node:url";
 import { and, eq } from "drizzle-orm";
 import { db } from "./index";
 import {
@@ -250,7 +251,7 @@ const SHOP_SETTINGS: Record<string, string> = {
   bill_footer: "Thank you. Please bring this receipt when collecting.",
 };
 
-async function main() {
+export async function seed() {
   let addedTypes = 0;
   let addedFields = 0;
 
@@ -324,7 +325,13 @@ async function main() {
   );
 }
 
-main().catch((error) => {
-  console.error(error);
-  process.exit(1);
-});
+/* Run when invoked directly (`npm run db:seed`), stay quiet when imported.
+   scripts/db-setup.ts imports seed() rather than spawning it: on Windows,
+   spawning npx.cmd fails outright with EINVAL, because Node refuses to execute
+   .cmd files without a shell. Importing sidesteps the whole problem. */
+if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) {
+  seed().catch((error) => {
+    console.error(error);
+    process.exit(1);
+  });
+}
