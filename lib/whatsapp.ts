@@ -7,8 +7,8 @@
  */
 
 /**
- * Indian mobile numbers get stored the way they are written — '9845012345',
- * '+91 98450 12345', '098450 12345'. wa.me needs digits only, with country
+ * Indian mobile numbers get stored the way they are written — '9000000000',
+ * '+91 90000 00000', '090000 00000'. wa.me needs digits only, with country
  * code and no plus.
  */
 export function toWaNumber(phone: string, defaultCountry = "91"): string | null {
@@ -17,7 +17,7 @@ export function toWaNumber(phone: string, defaultCountry = "91"): string | null 
 
   // Already carries a country code.
   if (digits.length > 10 && digits.startsWith(defaultCountry)) return digits;
-  // Local trunk prefix: 0 98450 12345
+  // Local trunk prefix: 0 90000 00000
   if (digits.length === 11 && digits.startsWith("0")) {
     return defaultCountry + digits.slice(1);
   }

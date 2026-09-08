@@ -56,7 +56,9 @@ export function ImportForm({
               className="field font-mono text-xs"
               name="csv"
               rows={5}
-              placeholder="Name,Phone,Address&#10;Rakesh Menon,9845012345,Sadashivanagar"
+              /* Deliberately an unusable number. A format-valid Indian mobile
+                 sitting in a live app's placeholder is somebody's real number. */
+              placeholder="Name,Phone,Address&#10;A. Kumar,90000 00000,Jayanagar"
             />
           </label>
 
