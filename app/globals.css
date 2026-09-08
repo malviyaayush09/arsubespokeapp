@@ -1,0 +1,177 @@
+@import "tailwindcss";
+
+/* No webfonts anywhere. This runs on a shop machine that may have no internet
+   on a given morning, and a measurement form that waits on Google Fonts is a
+   measurement form that fails at the counter. Georgia carries the letterhead;
+   the system UI stack carries everything else. */
+
+@theme {
+  --color-ink: #1a1714;
+  --color-ink-2: #3b342c;
+  --color-muted: #6f6558;
+  --color-bone: #faf8f4;
+  --color-card: #ffffff;
+  --color-line: #e4ded4;
+  --color-gold: #a8842a;
+  --color-gold-soft: #f3ead4;
+  --color-danger: #a6301f;
+  --color-danger-soft: #fbeeec;
+  --color-good: #2f6b3f;
+  --color-good-soft: #eaf3ec;
+
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  --font-serif: Georgia, "Times New Roman", serif;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background: var(--color-bone);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+  }
+
+  /* Tablet at the measuring table: nothing tappable smaller than a fingertip,
+     and 16px minimum on inputs so iOS stops zooming the page on focus. */
+  input,
+  select,
+  textarea,
+  button {
+    font: inherit;
+    font-size: max(1rem, 16px);
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-serif);
+    letter-spacing: -0.01em;
+  }
+}
+
+@layer components {
+  .card {
+    @apply rounded-lg border border-line bg-card;
+  }
+
+  .field {
+    @apply w-full rounded-md border border-line bg-white px-3 py-2.5 text-ink
+           outline-none transition
+           focus:border-gold focus:ring-2 focus:ring-gold/25;
+  }
+
+  .label {
+    @apply mb-1 block text-sm font-medium text-ink-2;
+  }
+
+  /* Tailwind v4 only lets @apply pull in real utilities, never another
+     component class — `@apply btn` inside .btn-primary fails the build. So the
+     shared base is a selector list and each variant adds only its own colours. */
+  .btn,
+  .btn-primary,
+  .btn-secondary,
+  .btn-danger {
+    @apply inline-flex min-h-11 cursor-pointer items-center justify-center gap-2
+           rounded-md px-4 py-2.5 font-medium transition
+           disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .btn-primary {
+    @apply bg-ink text-bone hover:bg-ink-2;
+  }
+
+  .btn-secondary {
+    @apply border border-line bg-white text-ink hover:bg-bone;
+  }
+
+  .btn-danger {
+    @apply border border-danger/30 bg-danger-soft text-danger hover:bg-danger/10;
+  }
+
+  .btn-sm {
+    @apply min-h-9 px-3 py-1.5 text-sm;
+  }
+
+  .chip {
+    @apply inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium;
+  }
+
+  .th {
+    @apply px-3 py-2 text-left text-xs font-semibold tracking-wide text-muted uppercase;
+  }
+
+  .td {
+    @apply border-t border-line px-3 py-2.5 align-top;
+  }
+}
+
+/* ── print ────────────────────────────────────────────────────────────────
+ *
+ * The whole point of this app: three copies out of one order, on paper, with
+ * no browser chrome. Everything below is what makes the printout a document
+ * rather than a screenshot of a web page. */
+
+@page {
+  size: A4;
+  margin: 14mm;
+}
+
+@media print {
+  html,
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  /* Screen-only furniture: nav, buttons, the print bar itself. */
+  .no-print {
+    display: none !important;
+  }
+
+  /* Backgrounds and rules are load-bearing on a bill — without this, browsers
+     drop every tint and the totals block loses its box. */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .sheet {
+    /* Each copy is its own page. A tailor copy that spills two lines onto a
+       second sheet is a second sheet someone has to keep track of. */
+    break-after: page;
+    page-break-after: always;
+    margin: 0;
+    padding: 0;
+    box-shadow: none !important;
+    border: 0 !important;
+  }
+
+  .sheet:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+
+  /* Never split a measurement block or a totals block across a page break. */
+  .keep-together {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+
+  tr,
+  img {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  a[href]::after {
+    content: "";
+  }
+}

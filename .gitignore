@@ -1,0 +1,17 @@
+node_modules/
+.next/
+next-env.d.ts
+*.tsbuildinfo
+
+# The shop's live data. Never commit it — it is client PII.
+data/
+backups/
+
+.env
+.env.local
+.DS_Store
+Thumbs.db
+
+# Build/install transcripts written while setting the project up.
+# Safe to delete; kept out of git rather than removed without asking.
+*.log

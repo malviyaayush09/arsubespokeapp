@@ -1,0 +1,35 @@
+{
+  "name": "arsu-atelier",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Client, measurement, order and billing manager for Arsu Bespoke Studio.",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start -H 0.0.0.0 -p 3000",
+    "db:setup": "tsx scripts/db-setup.ts",
+    "db:seed": "tsx db/seed.ts",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio"
+  },
+  "dependencies": {
+    "next": "16.3.4",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "better-sqlite3": "12.5.0",
+    "drizzle-orm": "0.45.2",
+    "zod": "4.5.4",
+    "date-fns": "4.4.0"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "@types/node": "^20.19.0",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.7",
+    "@types/better-sqlite3": "9.6.0",
+    "drizzle-kit": "0.31.10",
+    "tailwindcss": "4.3.3",
+    "@tailwindcss/postcss": "4.3.3",
+    "tsx": "4.23.13"
+  }
+}
