@@ -70,13 +70,27 @@ if ($InstallSchedule) {
   $action = New-ScheduledTaskAction -Execute "powershell.exe" `
     -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$me`" -Root `"$Root`" -Branch $Branch -Port $Port"
   $trigger = New-ScheduledTaskTrigger -Daily -At $At
-  $principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
+
+  <#
+    Runs as the CURRENT USER, not SYSTEM, and this matters for a private repo:
+    a git deploy key lives in that user's ~/.ssh, and SYSTEM has a different
+    profile entirely — it would never find the key, and the nightly pull would
+    fail every night with a permission error.
+
+    S4U ("service for user") means it still runs when nobody is logged in, and
+    without storing a password anywhere.
+  #>
+  $runAs = "$env:USERDOMAIN\$env:USERNAME"
+  $principal = New-ScheduledTaskPrincipal -UserId $runAs -LogonType S4U -RunLevel Highest
+
   $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable `
     -ExecutionTimeLimit (New-TimeSpan -Hours 1) -DontStopIfGoingOnBatteries
   Register-ScheduledTask -TaskName $name -Action $action -Trigger $trigger `
     -Principal $principal -Settings $settings `
     -Description "Checks for a new Arsu Atelier version once a day and updates, rolling back if anything fails." | Out-Null
-  Log "nightly update task registered for $At" "Green"
+
+  Log "nightly update task registered for $At, running as $runAs" "Green"
+  Log "if the repo is private, the deploy key must be in that user's ~/.ssh"
   Log "log: $logFile"
   exit 0
 }

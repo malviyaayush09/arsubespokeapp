@@ -24,9 +24,9 @@ bar, no tabs. It reads as a program.
 
 ## Before you go to the shop
 
-1. **Push this repo to GitHub.** Self-updates pull from it. Private is fine —
-   see *Private repo* below. Without a repo you can still install with
-   `-FromLocal`, but then every change means visiting again.
+1. **The repo** is `malviyaayush09/arsubespokeapp` (private). Self-updates pull
+   from it, so it must be pushed before you go. Without a repo you can still
+   install with `-FromLocal`, but then every change means visiting again.
 2. **Node 20 LTS MSI** on a USB stick — <https://nodejs.org>. Node 22+ needs a
    different `better-sqlite3` pin (see the README).
 3. **Git for Windows** on the same stick — needed for self-updates.
@@ -40,8 +40,11 @@ Install Node and Git first. Then, in an **Administrator PowerShell**:
 
 ```powershell
 cd C:\ArsuAtelier-installer   # wherever you put these scripts
-.\scripts\setup.ps1 -Repo https://github.com/YOU/arsu-atelier.git -AllowTablet
+.\scripts\setup.ps1 -Repo git@github.com:malviyaayush09/arsubespokeapp.git -AllowTablet
 ```
+
+The repo is private, so set up the deploy key first — see *Giving the laptop
+read access* below. That is why the URL is SSH rather than HTTPS.
 
 No repo? `.\scripts\setup.ps1 -FromLocal D:\arsu-atelier -AllowTablet`
 
@@ -184,18 +187,55 @@ $env:ARSU_DB_PATH="C:\ArsuAtelier\backups\<chosen>.db"; npm run db:setup
 **Forced offline for an evening.** Nothing to do — the app is local and keeps
 working without internet. Only self-updates need the network.
 
-## Private repo
+## Giving the laptop read access (private repo)
 
-The laptop needs read access without a human typing a password. Either:
+The repo is **private**, so the laptop needs to authenticate without anyone
+typing a password at 2am. Use a **read-only deploy key**: it is scoped to this
+one repo and cannot push, so the shop laptop being stolen does not put your
+code at risk.
 
-- a **deploy key**: generate a key on his laptop, add the public half to the
-  repo's Deploy Keys (read-only), and clone over SSH; or
-- a **fine-grained personal access token** with read-only contents scope,
-  stored in Windows Credential Manager via `git config --global
-  credential.helper manager`.
+Do this on **his laptop**, before running `setup.ps1`.
 
-A deploy key is better: it is read-only and scoped to this one repo, so a
-compromised laptop cannot push.
+**1. Make a key** (no passphrase — an unattended task cannot type one):
+
+```powershell
+ssh-keygen -t ed25519 -C "arsu-shop-laptop" -f "$env:USERPROFILE\.ssh\arsu_deploy" -N '""'
+Get-Content "$env:USERPROFILE\.ssh\arsu_deploy.pub"
+```
+
+**2. Add the public half to GitHub**: repo → Settings → Deploy keys → Add
+deploy key. Paste it. **Leave "Allow write access" unchecked.**
+
+**3. Tell SSH to use it** — create `%USERPROFILE%\.ssh\config`:
+
+```
+Host github.com
+  HostName github.com
+  User git
+  IdentityFile ~/.ssh/arsu_deploy
+  IdentitiesOnly yes
+```
+
+**4. Trust the host once**, so the first unattended pull does not hang on a
+yes/no prompt:
+
+```powershell
+ssh-keyscan github.com | Out-File -Append -Encoding ASCII "$env:USERPROFILE\.ssh\known_hosts"
+ssh -T git@github.com     # expect: "Hi ...! You've successfully authenticated"
+```
+
+**5. Install using the SSH URL:**
+
+```powershell
+.\setup.ps1 -Repo git@github.com:malviyaayush09/arsubespokeapp.git -AllowTablet
+```
+
+**Which account owns the key matters.** The app's startup task runs as SYSTEM
+(it needs nothing from the network), but `update.ps1 -InstallSchedule`
+deliberately registers the *update* task as **the user who runs it**, because
+that is whose `~/.ssh` holds the deploy key — SYSTEM has a different profile
+and would fail every night with a permission error. So run
+`-InstallSchedule` from the same Windows account that you put the key in.
 
 ## Take a backup with you
 
