@@ -27,8 +27,10 @@ bar, no tabs. It reads as a program.
 1. **The repo** is `malviyaayush09/arsubespokeapp` (private). Self-updates pull
    from it, so it must be pushed before you go. Without a repo you can still
    install with `-FromLocal`, but then every change means visiting again.
-2. **Node 20 LTS MSI** on a USB stick — <https://nodejs.org>. Node 22+ needs a
-   different `better-sqlite3` pin (see the README).
+2. **A Node LTS MSI** on a USB stick — <https://nodejs.org>. Any of Node 20,
+   22 or 24 works; `better-sqlite3` 12.5.0 has Windows prebuilds for all of
+   them. If Node is upgraded later, run `npm rebuild better-sqlite3` — see the
+   README.
 3. **Git for Windows** on the same stick — needed for self-updates.
 4. Decide whether you want the **tablet** at the measuring table. If yes, the
    laptop needs a stable local IP (DHCP reservation on the shop router, or a

@@ -57,14 +57,17 @@ Say "running as Administrator"
 
 $nodeCmd = Get-Command node -ErrorAction SilentlyContinue
 if (-not $nodeCmd) {
-  Die "Node.js is not installed. Install the Node 20 LTS MSI from https://nodejs.org first, then run this again."
+  Die "Node.js is not installed. Install a Node LTS MSI from https://nodejs.org first, then run this again."
 }
 $nodeExe = $nodeCmd.Source
 $nodeMajor = [int]((& $nodeExe --version) -replace '^v(\d+).*', '$1')
 Say "node $(& $nodeExe --version) at $nodeExe"
 if ($nodeMajor -lt 20) { Die "Node 20 or newer is required. Found major version $nodeMajor." }
-if ($nodeMajor -ge 22) {
-  Warn "Node $nodeMajor detected. better-sqlite3 is pinned to 12.5.0 for Node 20; if npm ci fails to build it, see the README section 'Node version'."
+if ($nodeMajor -gt 25) {
+  # better-sqlite3 12.5.0 ships Windows prebuilds for Node 20 and 22-25 only.
+  # Past that, npm falls back to compiling from source and needs Visual Studio
+  # Build Tools, which a shop laptop will not have.
+  Warn "Node $nodeMajor is newer than better-sqlite3 12.5.0 has a prebuild for. If npm ci fails to build it, install Node 24 LTS instead."
 }
 
 if ($Repo -and -not (Get-Command git -ErrorAction SilentlyContinue)) {

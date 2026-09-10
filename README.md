@@ -24,13 +24,23 @@ is the point, because measurements get taken at the table, not at the counter.
 
 ### Node version — read this before upgrading
 
-`better-sqlite3` is pinned to **12.5.0** because that is the newest release
-publishing a prebuilt binary for **Node 20 on Windows**. Newer versions (13.x)
-require Node 22, and 12.11.1 has no Node 20 Windows prebuild, so npm falls back
-to compiling from source and fails without Visual Studio Build Tools installed.
+`better-sqlite3` is pinned to **12.5.0**. It publishes Windows prebuilt
+binaries for Node **20, 22, 23, 24 and 25**, so it installs without Visual
+Studio Build Tools on any of them. Do not move to 13.x — that drops Node 20 and
+had no Windows prebuild for Node 24 when this was written.
 
-If Node is ever upgraded to 22+, `better-sqlite3` can go to 13.x. Until then,
-leave the pin alone.
+**After upgrading Node, run `npm rebuild better-sqlite3`.** The compiled binary
+is tied to one Node ABI version, and Node will refuse to load a mismatch:
+
+```
+Error: The module '...better_sqlite3.node' was compiled against a different
+Node.js version using NODE_MODULE_VERSION 115. This version of Node.js
+requires NODE_MODULE_VERSION 137.
+```
+
+That is not a broken install — it is a Node upgrade (115 is Node 20, 137 is
+Node 24). `npm rebuild better-sqlite3` fetches the right prebuild and fixes it.
+Nothing in `data/` is affected.
 
 ## What's where
 
