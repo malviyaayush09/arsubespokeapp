@@ -48,9 +48,22 @@ export default async function RootLayout({
       <body className="min-h-screen">
         <header className="no-print border-b border-line bg-ink text-bone">
           <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-5 gap-y-3 px-4 py-3">
-            <Link href="/" className="flex items-baseline gap-2">
-              <span className="font-serif text-xl tracking-[0.18em]">ARSU</span>
-              <span className="text-xs tracking-wide text-bone/60">Atelier</span>
+            <Link href="/" className="flex items-center gap-2.5">
+              {/* The studio's monogram. A 135×160 source shown 28px tall, so it
+                  only ever scales down — an upscaled logo is the quickest way
+                  to make a thing look cheap. A plain <img> rather than
+                  next/image: it is 25KB, local, and this app runs offline. */}
+              <img
+                src="/logo.png"
+                alt=""
+                width={135}
+                height={160}
+                className="h-7 w-auto"
+              />
+              <span className="flex items-baseline gap-2">
+                <span className="font-serif text-xl tracking-[0.18em]">ARSU</span>
+                <span className="text-xs tracking-wide text-bone/60">Atelier</span>
+              </span>
             </Link>
 
             <nav className="flex flex-wrap items-center gap-1">
