@@ -1,5 +1,5 @@
 <#
-  Arsu Atelier — update the shop laptop to the latest pushed code.
+  Arsu Atelier - update the shop laptop to the latest pushed code.
 
   Safe by construction. The order of operations is the whole design:
 
@@ -20,6 +20,12 @@
 
   Or have the laptop check nightly:
     .\update.ps1 -InstallSchedule -At 02:30
+
+  KEEP THIS FILE PURE ASCII - see the longer note in setup.ps1. Windows
+  PowerShell 5.1 reads a script with no byte-order mark in the system ANSI
+  codepage, and an em dash then decodes to something it treats as a closing
+  double quote, which breaks the parse of the entire file. This script runs
+  unattended, where a parse error is a silent failure nobody is there to see.
 #>
 [CmdletBinding()]
 param(
@@ -55,7 +61,7 @@ function Log([string]$m, [string]$colour = "Gray") {
 }
 function Fail([string]$m) { Log "FAILED: $m" "Red"; throw $m }
 
-# ── schedule mode ─────────────────────────────────────────────────────────
+# -- schedule mode ---------------------------------------------------------
 if ($InstallSchedule) {
   $admin = ([Security.Principal.WindowsPrincipal] `
     [Security.Principal.WindowsIdentity]::GetCurrent()
@@ -74,7 +80,7 @@ if ($InstallSchedule) {
   <#
     Runs as the CURRENT USER, not SYSTEM, and this matters for a private repo:
     a git deploy key lives in that user's ~/.ssh, and SYSTEM has a different
-    profile entirely — it would never find the key, and the nightly pull would
+    profile entirely - it would never find the key, and the nightly pull would
     fail every night with a permission error.
 
     S4U ("service for user") means it still runs when nobody is logged in, and
@@ -95,7 +101,7 @@ if ($InstallSchedule) {
   exit 0
 }
 
-# ── checks ────────────────────────────────────────────────────────────────
+# -- checks ----------------------------------------------------------------
 Log "=== update starting ===" "Cyan"
 
 if (-not (Test-Path (Join-Path $app "package.json"))) { Fail "no app at $app" }
@@ -108,33 +114,33 @@ try {
   $before = (& git rev-parse HEAD).Trim()
   Log "currently on $($before.Substring(0,8))"
 
-  # ── 1. back up before anything ──────────────────────────────────────────
+  # -- 1. back up before anything ------------------------------------------
   if (Test-Path $dbPath) {
     Log "backing up the database"
     $env:ARSU_BACKUP_DIR = $backups
     & npx tsx scripts/backup-now.ts pre-update
-    if ($LASTEXITCODE -ne 0) { Fail "could not back up the database — refusing to update" }
+    if ($LASTEXITCODE -ne 0) { Fail "could not back up the database - refusing to update" }
   }
 
-  # ── 2. anything new? ────────────────────────────────────────────────────
+  # -- 2. anything new? ----------------------------------------------------
   Log "fetching"
   & git fetch --quiet origin $Branch
   if ($LASTEXITCODE -ne 0) { Fail "git fetch failed (no network?)" }
 
   $after = (& git rev-parse "origin/$Branch").Trim()
   if ($after -eq $before -and -not $Force) {
-    Log "already up to date — nothing to do" "Green"
+    Log "already up to date - nothing to do" "Green"
     exit 0
   }
   Log "updating to $($after.Substring(0,8))"
 
-  # ── 3. keep the working build so we can put it back ─────────────────────
+  # -- 3. keep the working build so we can put it back ---------------------
   $next = Join-Path $app ".next"
   $prev = Join-Path $app ".next.prev"
   if (Test-Path $prev) { Remove-Item $prev -Recurse -Force }
   if (Test-Path $next) { Move-Item $next $prev }
 
-  # ── 4. from here on, any failure rolls back ─────────────────────────────
+  # -- 4. from here on, any failure rolls back -----------------------------
   try {
     & git reset --hard "origin/$Branch" --quiet
     if ($LASTEXITCODE -ne 0) { Fail "git reset failed" }
@@ -174,7 +180,7 @@ try {
     Log "=== updated to $($after.Substring(0,8)) ===" "Green"
   }
   catch {
-    # ── rollback ──────────────────────────────────────────────────────────
+    # -- rollback ----------------------------------------------------------
     Log "rolling back to $($before.Substring(0,8))" "Yellow"
     try {
       & git reset --hard $before --quiet
@@ -183,7 +189,7 @@ try {
       if (Test-Path $next) { Remove-Item $next -Recurse -Force }
       if (Test-Path $prev) { Move-Item $prev $next }
       else {
-        Log "no previous build to restore — rebuilding the old version" "Yellow"
+        Log "no previous build to restore - rebuilding the old version" "Yellow"
         & npm run build
       }
 
@@ -193,7 +199,7 @@ try {
       Log "rolled back; the shop is running the previous version" "Yellow"
     }
     catch {
-      Log "ROLLBACK ALSO FAILED — the app may be down. Connect and fix it by hand." "Red"
+      Log "ROLLBACK ALSO FAILED - the app may be down. Connect and fix it by hand." "Red"
       Log "  cd $app; git reset --hard $before; npm ci; npm run build; Start-ScheduledTask -TaskName $taskName" "Red"
     }
     Log "=== update failed ===" "Red"
