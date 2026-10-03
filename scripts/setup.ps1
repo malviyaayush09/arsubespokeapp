@@ -200,6 +200,11 @@ foreach ($candidate in @(
   "${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe"
 )) { if (Test-Path $candidate) { $browser = $candidate; break } }
 
+# The studio monogram, so the shortcut is not wearing Edge's face. It lives in
+# the app folder, which an update replaces, but an update rewrites the same
+# file at the same path - the shortcut keeps pointing at it either way.
+$icon = Join-Path $app "public\arsu.ico"
+
 $shell = New-Object -ComObject WScript.Shell
 foreach ($dir in @(
   [Environment]::GetFolderPath("CommonDesktopDirectory"),
@@ -213,12 +218,17 @@ foreach ($dir in @(
   } else {
     $lnk.TargetPath = $url
   }
-  $lnk.IconLocation = if ($browser) { "$browser,0" } else { "" }
+  $lnk.IconLocation =
+    if (Test-Path $icon) { "$icon,0" }
+    elseif ($browser)    { "$browser,0" }
+    else                 { "" }
   $lnk.Description  = "Arsu Atelier"
   $lnk.Save()
 }
 if ($browser) { Say "ARSU icon on the desktop and in the Start menu (opens as its own window)" }
 else { Warn "Neither Edge nor Chrome found - the icon will open the default browser instead of an app window." }
+if (Test-Path $icon) { Say "using the studio monogram as the icon" }
+else { Warn "public\arsu.ico is missing - the shortcut will wear the browser's icon." }
 
 # -- done ------------------------------------------------------------------
 Step "Checking it answers"
