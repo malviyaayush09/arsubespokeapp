@@ -76,7 +76,10 @@ export default async function PrintPage({
         {sheets.map((v) => (
           <div
             key={v}
-            className="mx-auto w-full max-w-[210mm] bg-white p-[14mm] shadow-sm ring-1 ring-line print:max-w-none print:p-0 print:shadow-none print:ring-0"
+            /* sheet-page is what carries the page break in print - see the
+               note in globals.css. It must stay on this wrapper and not move
+               onto the sheet itself. */
+            className="sheet-page mx-auto w-full max-w-[210mm] bg-white p-[14mm] shadow-sm ring-1 ring-line print:max-w-none print:p-0 print:shadow-none print:ring-0"
           >
             {v === "tailor" ? <TailorSheet data={data} shop={shop} /> : null}
             {v === "client" ? <ClientSheet data={data} shop={shop} /> : null}

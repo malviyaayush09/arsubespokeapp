@@ -51,9 +51,16 @@ function Letterhead({ shop, copyLabel }: { shop: Shop; copyLabel: string }) {
 function OrderMeta({
   data,
   showStatus,
+  /* The tailor copy leaves the client's phone number off. That sheet goes out
+     to the bench and is handled by whoever is cutting; the person stitching
+     has no reason to be holding a client's number, and a cutting card left on
+     a table is not where one should sit. The name stays, because the work
+     still has to be attributable to someone. */
+  showPhone = true,
 }: {
   data: OrderFull;
   showStatus?: boolean;
+  showPhone?: boolean;
 }) {
   const { order, client } = data;
   return (
@@ -61,7 +68,7 @@ function OrderMeta({
       <Line label="Order no." value={order.orderNo} strong />
       <Line label="Client" value={client.name} strong />
       <Line label="Order date" value={formatDate(order.orderDate)} />
-      <Line label="Phone" value={client.phone} />
+      {showPhone ? <Line label="Phone" value={client.phone} /> : null}
       <Line
         label="Delivery"
         value={order.promisedDate ? formatDate(order.promisedDate) : "—"}
@@ -106,7 +113,7 @@ export function TailorSheet({ data, shop }: { data: OrderFull; shop: Shop }) {
   return (
     <section className="sheet bg-white p-0 text-black">
       <Letterhead shop={shop} copyLabel="Tailor copy" />
-      <OrderMeta data={data} showStatus />
+      <OrderMeta data={data} showStatus showPhone={false} />
 
       {data.items.map((item, index) => (
         <div key={item.id} className="keep-together mt-4">

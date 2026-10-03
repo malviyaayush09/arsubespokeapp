@@ -19,7 +19,7 @@ import {
   PAYMENT_METHODS,
   type OrderStatus,
 } from "@/db/schema";
-import { nextOrderNo } from "@/lib/orders";
+import { nextOrderNo, orderNoTaken } from "@/lib/orders";
 import { getFieldsFor, getLatestSet } from "@/lib/measurements";
 import { parseMeasurement } from "@/lib/measure";
 import { parseRupeesToPaise } from "@/lib/money";
@@ -80,6 +80,10 @@ const CreateOrder = z.object({
   orderDate: z.string().min(1, "Order date is required"),
   promisedDate: z.string().optional(),
   internalNotes: z.string().trim().optional(),
+  /* Blank means "number it for me". A shop that already writes its own
+     numbers in a book should be able to keep doing that, and a shop that
+     does not should never have to think about it. */
+  orderNo: z.string().trim().max(40, "Order number is too long").optional(),
 });
 
 export async function createOrder(
@@ -91,6 +95,7 @@ export async function createOrder(
     orderDate: formData.get("orderDate") || today(),
     promisedDate: formData.get("promisedDate") ?? "",
     internalNotes: formData.get("internalNotes") ?? "",
+    orderNo: formData.get("orderNo") ?? "",
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Check the form" };
@@ -107,13 +112,25 @@ export async function createOrder(
 
   const { clientId, orderDate, promisedDate, internalNotes } = parsed.data;
 
+  /* Left blank - or cleared out - falls back to the running sequence. The
+     fallback is computed here rather than trusted from the form, so a stale
+     page open since yesterday cannot reuse a number taken since. */
+  const orderNo =
+    parsed.data.orderNo && parsed.data.orderNo !== ""
+      ? parsed.data.orderNo
+      : nextOrderNo();
+
+  if (orderNoTaken(orderNo)) {
+    return { error: `Order number ${orderNo} is already used by another order.` };
+  }
+
   /* One transaction: an order that exists without its garments, or garments
      without their cutting card, is worse than no order at all. */
   const orderId = db.transaction((tx) => {
     const order = tx
       .insert(orders)
       .values({
-        orderNo: nextOrderNo(),
+        orderNo,
         clientId,
         orderDate,
         promisedDate: promisedDate && promisedDate !== "" ? promisedDate : null,
@@ -324,11 +341,22 @@ export async function updateOrderMeta(
   const orderDate = String(formData.get("orderDate") ?? "").trim();
   const promisedDate = String(formData.get("promisedDate") ?? "").trim();
   const internalNotes = String(formData.get("internalNotes") ?? "").trim();
+  const orderNo = String(formData.get("orderNo") ?? "").trim();
 
   if (!orderDate) return { error: "Order date is required" };
 
+  /* Blank is not treated as "renumber this order" - an order that has been
+     printed and handed over keeps the number on that paper. Clearing the box
+     leaves the existing number alone. */
+  if (orderNo === "") return { error: "Order number cannot be empty" };
+  if (orderNo.length > 40) return { error: "Order number is too long" };
+  if (orderNoTaken(orderNo, orderId)) {
+    return { error: `Order number ${orderNo} is already used by another order.` };
+  }
+
   db.update(orders)
     .set({
+      orderNo,
       orderDate,
       promisedDate: promisedDate || null,
       internalNotes: internalNotes || null,

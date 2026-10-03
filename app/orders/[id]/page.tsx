@@ -144,6 +144,7 @@ export default async function OrderPage({
 
           <OrderMetaForm
             orderId={order.id}
+            orderNo={order.orderNo}
             orderDate={order.orderDate}
             promisedDate={order.promisedDate}
             internalNotes={order.internalNotes}

@@ -96,6 +96,30 @@ export function nextOrderNo(now = new Date()): string {
   return `${yy}-${String(highest + 1).padStart(4, "0")}`;
 }
 
+/**
+ * Is this order number already used by another order?
+ *
+ * `orders.order_no` carries a unique index, so the database would refuse a
+ * duplicate regardless — but it refuses by throwing, and a raw SQLite
+ * constraint error is not something to put in front of a tailor. Checking
+ * first lets the form say plainly which number is taken.
+ *
+ * `exceptId` is the order being renamed, so saving a number back onto itself
+ * is not reported as a clash.
+ */
+export function orderNoTaken(orderNo: string, exceptId?: number): boolean {
+  const row = db
+    .select({ id: orders.id })
+    .from(orders)
+    .where(
+      exceptId === undefined
+        ? eq(orders.orderNo, orderNo)
+        : and(eq(orders.orderNo, orderNo), ne(orders.id, exceptId)),
+    )
+    .get();
+  return row !== undefined;
+}
+
 /* ── reads ────────────────────────────────────────────────────────────── */
 
 export function getOrderFull(orderId: number) {

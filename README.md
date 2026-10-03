@@ -83,13 +83,15 @@ From one order, `/orders/[id]/print/all` renders three A4 pages in one go:
 
 | Copy | Has | Deliberately does **not** have |
 |---|---|---|
-| **Tailor** | Every measurement, set large enough to read across a cutting table | Any price at all |
+| **Tailor** | Every measurement, set large enough to read across a cutting table, and the client's name | Any price at all, and the client's phone number |
 | **Client** | The bill, itemised | Measurements, internal notes |
 | **Shop** | Everything, including internal notes and payment history | — |
 
 The tailor copy carries no pricing on purpose: the person cutting has no reason
 to see it, and a rate sheet left on a bench is how one client learns another
-client's price.
+client's price. It leaves the phone number off for the same reason — that sheet
+is handled by whoever is at the bench, and a client's number does not need to
+travel with it. The name stays, because the work still has to belong to someone.
 
 Print to PDF with the browser's own "Save as PDF" — that is why there is no PDF
 dependency.
@@ -227,6 +229,15 @@ output went out in the RSC payload, so a locked `/clients` returned the unlock
 screen with every client's name and phone in the page source behind it. Every
 page therefore calls `await requireUnlocked()` as its first line. **A new page
 must do the same** — copy the first line of any existing one.
+
+**`:last-child` counts siblings, not matches of your selector.** The page break
+between printed copies sat on `.sheet`, cancelled on `.sheet:last-child`. But
+each `.sheet` is the only child of its own wrapper, so *every* sheet matched
+`:last-child` and *every* break was cancelled — printing all three copies ran
+them into one continuous document, with no error anywhere. The break now lives
+on `.sheet-page`, the wrapper, whose siblings are the other wrappers. If you
+re-nest the print markup, check `document.querySelectorAll('.sheet-page')`
+against how many of them match `:last-child`; the answer must be one.
 
 ## Known limitations
 

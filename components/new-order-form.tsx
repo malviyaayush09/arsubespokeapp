@@ -20,11 +20,14 @@ export function NewOrderForm({
   clientName,
   garments,
   today,
+  suggestedOrderNo,
 }: {
   clientId: number;
   clientName: string;
   garments: GarmentChoice[];
   today: string;
+  /** The next number in the sequence, pre-filled and overwritable. */
+  suggestedOrderNo: string;
 }) {
   const [state, formAction] = useActionState<ActionState, FormData>(createOrder, {});
   const [picked, setPicked] = useState<number[]>([]);
@@ -46,6 +49,23 @@ export function NewOrderForm({
       <FormError message={state.error} />
 
       <div className="card p-5">
+        {/* Pre-filled with the next number in the sequence, so the common case
+            is to leave it alone. Typing over it is for a shop that already
+            numbers its own jobs in a book and wants the app to match. */}
+        <label className="mb-4 block sm:max-w-[14rem]">
+          <span className="label">Order number</span>
+          <input
+            className="field font-mono"
+            type="text"
+            name="orderNo"
+            defaultValue={suggestedOrderNo}
+            maxLength={40}
+          />
+          <span className="mt-1 block text-xs text-muted">
+            Filled in for you. Type over it to use your own.
+          </span>
+        </label>
+
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="block">
             <span className="label">Order date</span>

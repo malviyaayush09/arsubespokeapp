@@ -52,11 +52,13 @@ export function AddGarmentForm({
 
 export function OrderMetaForm({
   orderId,
+  orderNo,
   orderDate,
   promisedDate,
   internalNotes,
 }: {
   orderId: number;
+  orderNo: string;
   orderDate: string;
   promisedDate: string | null;
   internalNotes: string | null;
@@ -69,11 +71,24 @@ export function OrderMetaForm({
   return (
     <div className="card p-4">
       <h2 className="mb-3 text-xs font-semibold tracking-wide text-muted uppercase">
-        Dates &amp; internal notes
+        Number, dates &amp; internal notes
       </h2>
       <FormError message={state.error} />
       <form action={formAction} className="space-y-3">
         <input type="hidden" name="orderId" value={orderId} />
+        <label className="block sm:max-w-[14rem]">
+          <span className="label">Order number</span>
+          <input
+            className="field font-mono"
+            type="text"
+            name="orderNo"
+            defaultValue={orderNo}
+            maxLength={40}
+          />
+          <span className="mt-1 block text-xs text-muted">
+            Changing this does not change paper already printed.
+          </span>
+        </label>
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="block">
             <span className="label">Order date</span>

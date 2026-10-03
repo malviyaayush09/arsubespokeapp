@@ -139,20 +139,29 @@
     print-color-adjust: exact !important;
   }
 
-  .sheet {
-    /* Each copy is its own page. A tailor copy that spills two lines onto a
-       second sheet is a second sheet someone has to keep track of. */
+  /* Each copy is its own page. A tailor copy that spills two lines onto a
+     second sheet is a second sheet someone has to keep track of.
+     *
+     * The break lives on the WRAPPER, not on .sheet itself. Each .sheet is the
+     * only child of its own wrapper div, so `.sheet:last-child` matched all
+     * three of them and cancelled the page break on every one - printing all
+     * three copies ran them together into one continuous document. The
+     * wrappers are real siblings, so :last-child means what it reads as. */
+  .sheet-page {
     break-after: page;
     page-break-after: always;
+  }
+
+  .sheet-page:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+
+  .sheet {
     margin: 0;
     padding: 0;
     box-shadow: none !important;
     border: 0 !important;
-  }
-
-  .sheet:last-child {
-    break-after: auto;
-    page-break-after: auto;
   }
 
   /* Never split a measurement block or a totals block across a page break. */

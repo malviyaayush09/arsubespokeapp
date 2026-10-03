@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { CATEGORY_LABELS, clients } from "@/db/schema";
-import { listGarmentTypes } from "@/lib/orders";
+import { listGarmentTypes, nextOrderNo } from "@/lib/orders";
 import { listMeasuredGarments } from "@/lib/measurements";
 import { formatDate, today } from "@/lib/format";
 import { PageHeader } from "@/components/ui";
@@ -104,6 +104,7 @@ export default async function NewOrderPage({
         clientName={client.name}
         garments={garments}
         today={today()}
+        suggestedOrderNo={nextOrderNo()}
       />
     </>
   );
