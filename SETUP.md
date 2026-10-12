@@ -153,22 +153,31 @@ Start-ScheduledTask -TaskName ArsuAtelier
 ```
 
 **`Cannot find module ...\next\dist\bin\next`** in `server.log`, and the
-browser says *localhost refused to connect*. `node_modules` is incomplete —
-almost always a dropped download during `npm ci`, which deletes the old
-dependencies **before** fetching the new ones, so an interrupted run leaves
-nothing rather than the previous version.
+browser says *localhost refused to connect*. `node_modules` is incomplete.
+
+**Always stop the app before running `npm ci`.** `npm ci` deletes
+`node_modules` before reinstalling, and Windows refuses to delete a file that
+a running process has loaded — a live Next.js server holds
+`node_modules\@next\swc-win32-x64-msvc\*.node` open. npm deletes everything it
+can, hits that file, fails with `EPERM` after about eight seconds, and leaves
+the dependencies gutted. This cost nine days of downtime, and it looks enough
+like a network error to be mistaken for one.
 
 ```powershell
-npm config set fetch-retries 5 fetch-retry-maxtimeout 120000 fetch-timeout 600000
+Stop-ScheduledTask -TaskName ArsuAtelier
+Start-Sleep 3
+Get-NetTCPConnection -LocalPort 3000 -State Listen -ErrorAction SilentlyContinue |
+  ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }
 cd C:\ArsuAtelier\app
 npm ci
 Test-Path .\node_modules\next\dist\bin\next     # must be True before going on
 npm run build
-Stop-ScheduledTask -TaskName ArsuAtelier; Start-ScheduledTask -TaskName ArsuAtelier
+Start-ScheduledTask -TaskName ArsuAtelier
 ```
 
-If the shop wifi keeps dropping, tether to a phone for this. Nothing in
-`data\` is affected — this is only the dependency folder.
+The first three lines are the ones that matter — without them `npm ci` fails
+on a locked file and makes things worse. Nothing in `data\` is affected
+either way; this is only the dependency folder.
 
 **Roll back by hand**
 

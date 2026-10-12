@@ -76,6 +76,46 @@ function Fail([string]$m) { Log "FAILED: $m" "Red"; throw $m }
   So: retry, then PROVE the tree is usable by looking for the one binary the
   launcher actually executes. Returns $true only if the app could really start.
 #>
+<#
+  Stop the app and make sure nothing is left holding its files.
+
+  Stop-ScheduledTask kills the launcher, but the node process it started can
+  survive and keep both port 3000 and the native .node binaries open - which
+  is enough to make the next npm ci fail with EPERM. So the port is checked
+  afterwards and anything still on it is ended.
+#>
+function Stop-App {
+  Log "stopping the app"
+  Stop-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
+  Start-Sleep -Seconds 3
+
+  foreach ($pass in 1..5) {
+    $held = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
+    if (-not $held) { break }
+    foreach ($holder in ($held.OwningProcess | Sort-Object -Unique)) {
+      Log "port $Port still held by process $holder - stopping it"
+      Stop-Process -Id $holder -Force -ErrorAction SilentlyContinue
+    }
+    Start-Sleep -Seconds 2
+  }
+}
+
+<# Ask the app whether it is back. A 307 is the PIN lock, which is a healthy
+   answer: it means something is listening and routing. #>
+function Wait-ForApp([int]$seconds = 60) {
+  Log "checking it answers"
+  foreach ($i in 1..([Math]::Ceiling($seconds / 2))) {
+    Start-Sleep -Seconds 2
+    try {
+      $r = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 5 -MaximumRedirection 0 -ErrorAction Stop
+      if ($r.StatusCode -eq 200) { return $true }
+    } catch {
+      if ($_.Exception.Response.StatusCode.value__ -in 200, 307) { return $true }
+    }
+  }
+  return $false
+}
+
 function Npm-Ci([int]$attempts = 3) {
   for ($i = 1; $i -le $attempts; $i++) {
     if ($i -gt 1) {
@@ -164,13 +204,43 @@ try {
   }
   Log "updating to $($after.Substring(0,8))"
 
-  # -- 3. keep the working build so we can put it back ---------------------
+  <#
+    -- 3. STOP THE APP BEFORE TOUCHING ITS DEPENDENCIES --------------------
+
+    This is the step whose absence caused every failed update this app has
+    ever had, and nine days of a dead shop.
+
+    npm ci deletes node_modules before it reinstalls. Windows will not let
+    anything delete a file that a running process has loaded, and a running
+    Next.js server holds node_modules\@next\swc-win32-x64-msvc\*.node open.
+    So npm deleted everything it could, hit that one file, and died with
+    EPERM - leaving node_modules gutted and the app unable to start again.
+
+    It failed in eight seconds, every single time, and looked enough like a
+    network error to be mistaken for one.
+
+    The shop is therefore offline for the couple of minutes an update takes.
+    That is the correct trade: a chosen minute at a chosen hour, instead of
+    an outage discovered when the tailor cannot open his app.
+  #>
+  Stop-App
+
+  # -- 4. keep the working build AND the working dependencies --------------
+  #
+  # Moving node_modules aside rather than letting npm ci delete it means a
+  # failed update can be undone by moving a folder back - instantly, with no
+  # network, no registry, and nothing to go wrong a second time.
   $next = Join-Path $app ".next"
   $prev = Join-Path $app ".next.prev"
   if (Test-Path $prev) { Remove-Item $prev -Recurse -Force }
   if (Test-Path $next) { Move-Item $next $prev }
 
-  # -- 4. from here on, any failure rolls back -----------------------------
+  $mods     = Join-Path $app "node_modules"
+  $modsPrev = Join-Path $app "node_modules.prev"
+  if (Test-Path $modsPrev) { Remove-Item $modsPrev -Recurse -Force }
+  if (Test-Path $mods) { Move-Item $mods $modsPrev }
+
+  # -- 5. from here on, any failure rolls back -----------------------------
   try {
     & git reset --hard "origin/$Branch" --quiet
     if ($LASTEXITCODE -ne 0) { Fail "git reset failed" }
@@ -187,37 +257,44 @@ try {
     & npm run db:setup
     if ($LASTEXITCODE -ne 0) { Fail "migration failed" }
 
-    Log "restarting"
-    Stop-ScheduledTask  -TaskName $taskName -ErrorAction SilentlyContinue
-    Start-Sleep -Seconds 3
+    Log "starting the app"
     Start-ScheduledTask -TaskName $taskName
 
-    Log "checking it answers"
-    $ok = $false
-    foreach ($i in 1..20) {
-      Start-Sleep -Seconds 2
-      try {
-        $r = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 5 -MaximumRedirection 0 -ErrorAction Stop
-        if ($r.StatusCode -eq 200) { $ok = $true; break }
-      } catch {
-        if ($_.Exception.Response.StatusCode.value__ -in 200, 307) { $ok = $true; break }
-      }
-    }
-    if (-not $ok) { Fail "the app did not come back up" }
+    if (-not (Wait-ForApp)) { Fail "the app did not come back up" }
 
-    if (Test-Path $prev) { Remove-Item $prev -Recurse -Force }
+    if (Test-Path $prev)     { Remove-Item $prev -Recurse -Force }
+    if (Test-Path $modsPrev) { Remove-Item $modsPrev -Recurse -Force }
     Log "=== updated to $($after.Substring(0,8)) ===" "Green"
   }
   catch {
     # -- rollback ----------------------------------------------------------
     Log "rolling back to $($before.Substring(0,8))" "Yellow"
     try {
+      # The app is already stopped, so nothing holds these folders open.
+      Stop-App
+
       & git reset --hard $before --quiet
 
-      # The dangerous moment. If this does not produce a working node_modules
-      # the shop is DOWN, and saying "rolled back" would be a lie.
-      if (-not (Npm-Ci)) {
-        Fail "rollback could not reinstall dependencies - THE APP CANNOT START"
+      <#
+        Put the KNOWN-GOOD dependencies back by moving a folder, not by asking
+        npm to fetch them again.
+
+        The previous version of this script called npm ci here. Whatever broke
+        the forward install - a file lock, a dropped connection - was usually
+        still true a few seconds later, so the rollback failed for the same
+        reason and left the shop with no dependencies at all. A move is
+        instant, needs no network, and cannot half-succeed.
+      #>
+      if (Test-Path $modsPrev) {
+        if (Test-Path $mods) { Remove-Item $mods -Recurse -Force -ErrorAction SilentlyContinue }
+        Move-Item $modsPrev $mods
+        Log "restored the previous dependencies"
+      }
+      if (-not (Test-Path (Join-Path $app "node_modules\next\dist\bin\next"))) {
+        Log "no usable dependencies to restore - reinstalling" "Yellow"
+        if (-not (Npm-Ci)) {
+          Fail "rollback could not reinstall dependencies - THE APP CANNOT START"
+        }
       }
 
       if (Test-Path $next) { Remove-Item $next -Recurse -Force }
@@ -228,22 +305,10 @@ try {
         if ($LASTEXITCODE -ne 0) { Fail "rebuild of the old version failed" }
       }
 
-      Stop-ScheduledTask  -TaskName $taskName -ErrorAction SilentlyContinue
-      Start-Sleep -Seconds 3
       Start-ScheduledTask -TaskName $taskName
 
       # Never claim a rollback worked without asking the app.
-      $back = $false
-      foreach ($i in 1..20) {
-        Start-Sleep -Seconds 2
-        try {
-          $r = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 5 -MaximumRedirection 0 -ErrorAction Stop
-          if ($r.StatusCode -eq 200) { $back = $true; break }
-        } catch {
-          if ($_.Exception.Response.StatusCode.value__ -in 200, 307) { $back = $true; break }
-        }
-      }
-      if (-not $back) { Fail "rolled back, but the app is still not answering" }
+      if (-not (Wait-ForApp)) { Fail "rolled back, but the app is still not answering" }
 
       Log "rolled back; the shop is running the previous version and answering" "Yellow"
     }
