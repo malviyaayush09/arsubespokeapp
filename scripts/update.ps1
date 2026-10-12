@@ -61,6 +61,36 @@ function Log([string]$m, [string]$colour = "Gray") {
 }
 function Fail([string]$m) { Log "FAILED: $m" "Red"; throw $m }
 
+<#
+  npm ci DELETES node_modules before it reinstalls, so a failure halfway
+  through does not leave the previous dependencies in place - it leaves
+  nothing. On a shop wifi that drops, that turns one bad minute into an app
+  that cannot start at all, and the error does not appear until the next
+  restart: "Cannot find module ...\next\dist\bin\next".
+
+  This happened. The rollback path called npm ci without checking its exit
+  code, so a second failure went unnoticed, the script logged "rolled back;
+  the shop is running the previous version", and the shop was in fact down
+  until someone drove to it.
+
+  So: retry, then PROVE the tree is usable by looking for the one binary the
+  launcher actually executes. Returns $true only if the app could really start.
+#>
+function Npm-Ci([int]$attempts = 3) {
+  for ($i = 1; $i -le $attempts; $i++) {
+    if ($i -gt 1) {
+      Log "npm ci attempt $i of $attempts (waiting 15s first)" "Yellow"
+      Start-Sleep -Seconds 15
+    }
+    & npm ci --no-audit --no-fund
+    if ($LASTEXITCODE -eq 0 -and (Test-Path (Join-Path $app "node_modules\next\dist\bin\next"))) {
+      return $true
+    }
+    Log "npm ci did not leave a usable node_modules (exit $LASTEXITCODE)" "Yellow"
+  }
+  return $false
+}
+
 # -- schedule mode ---------------------------------------------------------
 if ($InstallSchedule) {
   $admin = ([Security.Principal.WindowsPrincipal] `
@@ -146,8 +176,7 @@ try {
     if ($LASTEXITCODE -ne 0) { Fail "git reset failed" }
 
     Log "installing dependencies"
-    & npm ci --silent
-    if ($LASTEXITCODE -ne 0) { Fail "npm ci failed" }
+    if (-not (Npm-Ci)) { Fail "npm ci failed - dependencies are not usable" }
 
     Log "building"
     & npm run build
@@ -184,23 +213,47 @@ try {
     Log "rolling back to $($before.Substring(0,8))" "Yellow"
     try {
       & git reset --hard $before --quiet
-      & npm ci --silent
+
+      # The dangerous moment. If this does not produce a working node_modules
+      # the shop is DOWN, and saying "rolled back" would be a lie.
+      if (-not (Npm-Ci)) {
+        Fail "rollback could not reinstall dependencies - THE APP CANNOT START"
+      }
 
       if (Test-Path $next) { Remove-Item $next -Recurse -Force }
       if (Test-Path $prev) { Move-Item $prev $next }
       else {
         Log "no previous build to restore - rebuilding the old version" "Yellow"
         & npm run build
+        if ($LASTEXITCODE -ne 0) { Fail "rebuild of the old version failed" }
       }
 
       Stop-ScheduledTask  -TaskName $taskName -ErrorAction SilentlyContinue
       Start-Sleep -Seconds 3
       Start-ScheduledTask -TaskName $taskName
-      Log "rolled back; the shop is running the previous version" "Yellow"
+
+      # Never claim a rollback worked without asking the app.
+      $back = $false
+      foreach ($i in 1..20) {
+        Start-Sleep -Seconds 2
+        try {
+          $r = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 5 -MaximumRedirection 0 -ErrorAction Stop
+          if ($r.StatusCode -eq 200) { $back = $true; break }
+        } catch {
+          if ($_.Exception.Response.StatusCode.value__ -in 200, 307) { $back = $true; break }
+        }
+      }
+      if (-not $back) { Fail "rolled back, but the app is still not answering" }
+
+      Log "rolled back; the shop is running the previous version and answering" "Yellow"
     }
     catch {
-      Log "ROLLBACK ALSO FAILED - the app may be down. Connect and fix it by hand." "Red"
-      Log "  cd $app; git reset --hard $before; npm ci; npm run build; Start-ScheduledTask -TaskName $taskName" "Red"
+      Log "ROLLBACK FAILED - THE SHOP IS DOWN. Connect and fix it by hand, now." "Red"
+      Log "  cd $app" "Red"
+      Log "  git reset --hard $before" "Red"
+      Log "  npm ci          (check node_modules\next exists afterwards)" "Red"
+      Log "  npm run build" "Red"
+      Log "  Stop-ScheduledTask -TaskName $taskName; Start-ScheduledTask -TaskName $taskName" "Red"
     }
     Log "=== update failed ===" "Red"
     exit 1

@@ -152,6 +152,24 @@ Stop-ScheduledTask -TaskName ArsuAtelier
 Start-ScheduledTask -TaskName ArsuAtelier
 ```
 
+**`Cannot find module ...\next\dist\bin\next`** in `server.log`, and the
+browser says *localhost refused to connect*. `node_modules` is incomplete —
+almost always a dropped download during `npm ci`, which deletes the old
+dependencies **before** fetching the new ones, so an interrupted run leaves
+nothing rather than the previous version.
+
+```powershell
+npm config set fetch-retries 5 fetch-retry-maxtimeout 120000 fetch-timeout 600000
+cd C:\ArsuAtelier\app
+npm ci
+Test-Path .\node_modules\next\dist\bin\next     # must be True before going on
+npm run build
+Stop-ScheduledTask -TaskName ArsuAtelier; Start-ScheduledTask -TaskName ArsuAtelier
+```
+
+If the shop wifi keeps dropping, tether to a phone for this. Nothing in
+`data\` is affected — this is only the dependency folder.
+
 **Roll back by hand**
 
 ```powershell
