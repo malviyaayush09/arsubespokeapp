@@ -19,7 +19,15 @@ if (typeof window !== "undefined") {
   );
 }
 
+/* The turbopackIgnore comment stops the bundler trying to work out which file
+ * this resolves to. It cannot: the path comes from an environment variable set
+ * at runtime. So it gave up and traced the ENTIRE project folder instead -
+ * 12,620 files on the shop laptop once an update left a second copy of
+ * node_modules beside it - and the build ran out of heap and died halfway
+ * through an update. The path is read at runtime by better-sqlite3 and never
+ * bundled, so there was nothing here for the bundler to resolve anyway. */
 export const DB_PATH = path.resolve(
+  /* turbopackIgnore: true */
   process.env.ARSU_DB_PATH ?? path.join(process.cwd(), "data", "arsu.db"),
 );
 

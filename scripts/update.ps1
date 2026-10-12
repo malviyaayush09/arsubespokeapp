@@ -225,18 +225,29 @@ try {
   #>
   Stop-App
 
-  # -- 4. keep the working build AND the working dependencies --------------
-  #
-  # Moving node_modules aside rather than letting npm ci delete it means a
-  # failed update can be undone by moving a folder back - instantly, with no
-  # network, no registry, and nothing to go wrong a second time.
+  <#
+    -- 4. keep the working build AND the working dependencies --------------
+
+    Moving node_modules aside rather than letting npm ci delete it means a
+    failed update can be undone by moving a folder back - instantly, with no
+    network, and nothing that can go wrong a second time.
+
+    BOTH SNAPSHOTS LIVE OUTSIDE THE APP FOLDER, and that is not tidiness.
+    Keeping node_modules.prev inside it put a second complete copy of
+    node_modules in the project, the build traced all of it - 12,620 files -
+    and died with "JavaScript heap out of memory" halfway through an update.
+    The same build is fine when they are kept next door.
+  #>
+  $hold = Join-Path $Root "previous"
+  if (-not (Test-Path $hold)) { New-Item -ItemType Directory -Path $hold -Force | Out-Null }
+
   $next = Join-Path $app ".next"
-  $prev = Join-Path $app ".next.prev"
+  $prev = Join-Path $hold "next-build"
   if (Test-Path $prev) { Remove-Item $prev -Recurse -Force }
   if (Test-Path $next) { Move-Item $next $prev }
 
   $mods     = Join-Path $app "node_modules"
-  $modsPrev = Join-Path $app "node_modules.prev"
+  $modsPrev = Join-Path $hold "node_modules"
   if (Test-Path $modsPrev) { Remove-Item $modsPrev -Recurse -Force }
   if (Test-Path $mods) { Move-Item $mods $modsPrev }
 
