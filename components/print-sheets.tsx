@@ -23,19 +23,46 @@ export const VARIANT_LABELS: Record<Variant, string> = {
   shop: "Shop record",
 };
 
-function Letterhead({ shop, copyLabel }: { shop: Shop; copyLabel: string }) {
+function Letterhead({
+  shop,
+  copyLabel,
+  /* The monogram goes on the copies that leave the shop as documents - the
+     client's bill and the shop's own record. NOT on the cutting copy: that
+     sheet is kept deliberately spare, with no prices, no phone number and no
+     terms, because everything on it should be something the person at the
+     bench needs. A logo is not. */
+  withLogo = false,
+}: {
+  shop: Shop;
+  copyLabel: string;
+  withLogo?: boolean;
+}) {
   return (
     <header className="mb-4 flex items-start justify-between gap-6 border-b-2 border-black pb-3">
-      <div>
-        <div className="font-serif text-2xl tracking-[0.2em]">{shop.name}</div>
-        {shop.tagline ? (
-          <div className="text-[10pt] tracking-wide">{shop.tagline}</div>
+      <div className="flex items-start gap-3">
+        {withLogo ? (
+          /* 135x160 source printed about 15mm tall. That works out near 250
+             dots per inch on paper - crisp - and the source is never scaled
+             up, which is what makes a printed logo look cheap. */
+          <img
+            src="/logo.png"
+            alt=""
+            width={135}
+            height={160}
+            className="h-[15mm] w-auto shrink-0"
+          />
         ) : null}
-        {shop.address ? (
-          <div className="mt-1 text-[9pt] leading-snug whitespace-pre-line">
-            {shop.address}
-          </div>
-        ) : null}
+        <div>
+          <div className="font-serif text-2xl tracking-[0.2em]">{shop.name}</div>
+          {shop.tagline ? (
+            <div className="text-[10pt] tracking-wide">{shop.tagline}</div>
+          ) : null}
+          {shop.address ? (
+            <div className="mt-1 text-[9pt] leading-snug whitespace-pre-line">
+              {shop.address}
+            </div>
+            ) : null}
+        </div>
       </div>
       <div className="text-right text-[9pt] leading-snug">
         <div className="mb-1 inline-block border border-black px-2 py-0.5 text-[8pt] font-semibold tracking-wider uppercase">
@@ -229,7 +256,7 @@ export function ClientSheet({ data, shop }: { data: OrderFull; shop: Shop }) {
 
   return (
     <section className="sheet bg-white p-0 text-black">
-      <Letterhead shop={shop} copyLabel="Receipt" />
+      <Letterhead shop={shop} copyLabel="Receipt" withLogo />
       <OrderMeta data={data} />
 
       <table className="mt-2 w-full text-[10pt]">
@@ -345,7 +372,7 @@ export function ShopSheet({ data, shop }: { data: OrderFull; shop: Shop }) {
 
   return (
     <section className="sheet bg-white p-0 text-black">
-      <Letterhead shop={shop} copyLabel="Shop record" />
+      <Letterhead shop={shop} copyLabel="Shop record" withLogo />
       <OrderMeta data={data} showStatus />
 
       {items.map((item, index) => (
