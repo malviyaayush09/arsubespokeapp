@@ -4,44 +4,83 @@
 won't ask again on this laptop. At the measuring table, open the tablet's
 bookmark — same app, same records. Nothing needs starting; it runs on its own.
 
-**A new client.** Clients → **New client**. Name and phone are enough.
+---
 
-**Measurements.** Open the client → **Take measurements** → choose the garment.
-Write numbers as you always do — **34**, **34.5**, **34½**, **34 1/2** all work.
-If you've measured this client for this garment before, last time's numbers are
-already filled in; change only what has changed. Old measurements are kept, and
-orders already made are never affected.
+## When a client walks in
 
-**A new order.** **New order** (top right) → pick the client → set the delivery
-date → tick the garments. Saved measurements come across on their own, and
-anything missing shows in red. On the next screen: prices, cloth, and who is
-stitching it. Same as last time? Open the old order → **Repeat this order**.
+**Press New order.** That is the only place you start, every time, whether you
+have seen this person before or never.
 
-**Printing.** On the order, press **Print all 3**:
+**1. Who is it for.** Type the name, or a few digits of the phone number. If he
+has been here before, tap his name. If he hasn't, the app offers to add him —
+type the phone number and carry on. You do not go anywhere else first.
 
-| | For | Shows |
-|---|---|---|
-| 1 | The tailor | All measurements, big. **No prices.** |
-| 2 | The client | The bill. No measurements. |
-| 3 | The shop | Everything. |
+**2. What they want.** Tick the garments. Under each one it tells you whether
+you already have his measurements.
 
-**As the work moves.** Press the stage it has reached — Cutting, Stitching,
-Trial, Ready, Delivered.
+**3. Measurements.** This only appears if you need it. Write the numbers the way
+you always do — **34**, **34.5**, **34½**, **34 1/2** all work.
 
-**Money.** Fill in the stitching charge, cloth, extras, discount; the total
-works itself out. When the client pays, press **Record payment** — advance now
-and balance later are both fine. **Day book** shows what came in today.
+You measure the **upper body** once and the **lower body** once. That is all.
+Those same numbers are then used for his shirt, his kurta, his coat, his
+sherwani — everything. Next time he comes for a kurta, there is nothing to
+measure.
 
-**WhatsApp.** The buttons on an order open WhatsApp with the message already
-written — *ready for collection*, *come for trial*, *balance due*. **You still
-press send.** Nothing goes without you.
+**4. Dates.** The order number is already filled in — type over it if you keep
+your own numbers in a book. Put in the trial date and the delivery date.
 
-**The front page** shows everything that needs you today: what's in the
-workroom, what's late, what's finished but not collected, and what's owed.
+**Press Create order.**
 
 ---
 
-The laptop backs itself up daily. If the front page ever shows a **red line
+## On the order
+
+**Pockets, cuffs and the rest.** Under the measurements on each garment. How
+many pockets, what cuff, what collar — whatever you would have written beside
+the amount on paper. These are for this garment, this time.
+
+**The money.** The stitching rate fills in by itself. Put the cloth amount in
+**Fabric** — one amount for the whole job, as you write it. Then **Record
+payment** for the advance. The total and the balance work themselves out.
+
+**Press Print all 3.**
+
+| | For | Shows |
+|---|---|---|
+| 1 | The tailor | All measurements, big, and the pockets and cuffs. **No prices.** |
+| 2 | The client | The bill. No measurements. |
+| 3 | The shop | Everything. |
+
+---
+
+## While the work is being made
+
+Press the stage it has reached — **Cutting, Stitching, Trial, Ready,
+Delivered.**
+
+When it is **Ready**, the WhatsApp button writes the message for you, with the
+balance in it. **You press send in WhatsApp.** Nothing goes without you.
+
+## When he comes to collect
+
+Open the order, **Record payment** for the balance, press **Delivered**.
+
+## In the evening
+
+**Reports → Day book.** What came in today, cash and UPI separately. Count the
+drawer against it.
+
+---
+
+**The front page** shows what needs you today: what is in the workroom, what is
+late, what is finished but not collected, and what is owed.
+
+**Same as last time?** Open his old order and press **Repeat this order**. The
+garments, the measurements and the pockets all come across.
+
+---
+
+The laptop backs itself up every day. If the front page ever shows a **red line
 about backup**, tell Ayush.
 
 Nothing you press can lose a measurement or an old bill. If something looks
