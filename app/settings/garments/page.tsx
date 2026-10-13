@@ -19,7 +19,6 @@ export default async function GarmentTypesPage() {
       category: garmentTypes.category,
       isActive: garmentTypes.isActive,
       sortOrder: garmentTypes.sortOrder,
-      inheritsFromId: garmentTypes.inheritsFromId,
       isTemplate: garmentTypes.isTemplate,
       defaultStitchingPaise: garmentTypes.defaultStitchingPaise,
       defaultFabricPaise: garmentTypes.defaultFabricPaise,

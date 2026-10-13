@@ -1,17 +1,29 @@
-/* Seed: garment types, their measurement fields, and the shop letterhead.
+/* Seed: measurement groups, garment types, and the shop letterhead.
  *
- * Idempotent — safe to re-run. Garment types match on slug, fields on
- * (garment type, code). Re-running adds anything new and leaves edits Arsu
- * has made through the Garment Types screen alone.
+ * All of this is read off Arsu's own order sheet rather than invented. He does
+ * not measure per garment: his form has eleven rows for the upper body which
+ * serve Shirt, Kurta, Coat, W-Coat, Bandi, Bandhgala, Sherwani and
+ * Indowestern, and eight for the lower body which serve Pant, Shorts, Dhoti
+ * and Chudi Pant. Nineteen numbers for the whole business. The suits take both
+ * halves, because a suit is coat and trousers.
  *
- * The terminology here is a starting point. Every label, field and garment
- * type below is editable in the app without touching this file; this is just
- * what the shop starts with on day one.
+ * So the groups below are the real structure, and a garment's measuring form
+ * is its groups' fields plus anything it owns outright.
+ *
+ * Idempotent - safe to re-run, and it is re-run after every migration.
+ * Garment types match on slug, fields on (garment type, code). A re-run adds
+ * what is missing and leaves anything Arsu has edited through the Garment
+ * types screen alone.
+ *
+ * Every label here is editable in the app. These are his words as I read them
+ * off his sheet; where I have one wrong he corrects it in Settings, and this
+ * file is never touched again.
  */
 import { pathToFileURL } from "node:url";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "./index";
 import {
+  garmentTypeGroups,
   garmentTypes,
   measurementFields,
   settings,
@@ -24,243 +36,224 @@ type FieldSeed = {
   code: string;
   unit?: string;
   type?: FieldType;
-  choices?: string[];
   hint?: string;
-  group?: string;
 };
+
+/* Free text, not a measurement: no unit, and kept away from the number
+   parser. His sheet carries exactly this along the bottom - "Pant - Slim fit
+   Ankle length 2hp 1wp". */
+const notes = (code: string): FieldSeed => ({
+  label: "Fit notes",
+  code,
+  type: "text",
+  unit: "",
+  hint: "Slim fit, ankle length, pleats - anything that is not a number",
+});
+
+type GroupSeed = {
+  name: string;
+  slug: string;
+  fields: FieldSeed[];
+};
+
+/* Codes are prefixed because Length and Hip appear in BOTH halves of his
+   sheet, and a suit inherits both halves. Unprefixed, a suit would carry two
+   fields coded 'length' and nothing could tell them apart. Codes are internal
+   and never shown; the labels are what he reads. */
+const GROUPS: GroupSeed[] = [
+  {
+    name: "Upper body",
+    slug: "group-upper",
+    fields: [
+      { label: "Length", code: "up_length" },
+      { label: "Chest", code: "up_chest" },
+      { label: "Stomach", code: "up_stomach" },
+      { label: "Hip", code: "up_hip" },
+      { label: "Shoulder", code: "up_shoulder" },
+      { label: "Slv Length", code: "up_slv_length" },
+      { label: "Half Slv Length", code: "up_half_slv_length" },
+      { label: "Collar", code: "up_collar" },
+      { label: "Arm Loosing", code: "up_arm_loosing" },
+      { label: "Slv Open", code: "up_slv_open" },
+      { label: "Cross Back", code: "up_cross_back" },
+      notes("up_fit_notes"),
+    ],
+  },
+  {
+    name: "Lower body",
+    slug: "group-lower",
+    fields: [
+      { label: "Length", code: "lo_length" },
+      { label: "Waist", code: "lo_waist" },
+      { label: "Hip", code: "lo_hip" },
+      { label: "Thigh", code: "lo_thigh" },
+      { label: "Fork", code: "lo_fork" },
+      { label: "Bottom", code: "lo_bottom" },
+      { label: "Knee", code: "lo_knee" },
+      { label: "Calf", code: "lo_calf" },
+      notes("lo_fit_notes"),
+    ],
+  },
+];
 
 type GarmentSeed = {
   name: string;
   slug: string;
   category: GarmentCategory;
-  fields: FieldSeed[];
+  /** Group slugs, in the order they get measured. */
+  groups: string[];
+  /** Fields this garment alone has, on top of its groups'. */
+  fields?: FieldSeed[];
+  /** An older slug for the same garment: adopted rather than duplicated. */
+  wasSlug?: string;
 };
 
-/** Style choices are not measurements: no unit, and free of the number parser. */
-const choice = (label: string, code: string, choices: string[]): FieldSeed => ({
-  label,
-  code,
-  choices,
-  type: "choice",
-  unit: "",
-  group: "Style",
-});
-
+/* In the order of his billing list, so the order screen reads like his sheet. */
 const GARMENTS: GarmentSeed[] = [
-  {
-    name: "Shirt",
-    slug: "shirt",
-    category: "western",
-    fields: [
-      { label: "Length", code: "length" },
-      { label: "Shoulder", code: "shoulder" },
-      { label: "Chest", code: "chest" },
-      { label: "Waist", code: "waist" },
-      { label: "Seat", code: "seat" },
-      { label: "Sleeve Length", code: "sleeve_length" },
-      { label: "Bicep", code: "bicep" },
-      { label: "Cuff", code: "cuff" },
-      { label: "Collar", code: "collar" },
-      choice("Sleeve", "sleeve_style", ["Full", "Half"]),
-      choice("Cuff style", "cuff_style", ["Button", "French", "Double"]),
-      choice("Pocket", "pocket", ["None", "Single", "Double"]),
-    ],
-  },
-  {
-    name: "Trouser",
-    slug: "trouser",
-    category: "western",
-    fields: [
-      { label: "Length", code: "length", hint: "Outseam, waist to hem" },
-      { label: "Waist", code: "waist" },
-      { label: "Seat", code: "seat" },
-      { label: "Thigh", code: "thigh" },
-      { label: "Knee", code: "knee" },
-      { label: "Bottom", code: "bottom" },
-      { label: "Inseam", code: "inseam" },
-      { label: "Rise", code: "rise", hint: "Crotch depth" },
-      { label: "Fly", code: "fly" },
-      choice("Pleats", "pleats", ["Flat front", "Single", "Double"]),
-      choice("Cuff / turn-up", "turn_up", ["No", "Yes"]),
-    ],
-  },
-  {
-    name: "Suit / Blazer",
-    slug: "suit-blazer",
-    category: "western",
-    fields: [
-      { label: "Coat Length", code: "coat_length" },
-      { label: "Shoulder", code: "shoulder" },
-      { label: "Chest", code: "chest" },
-      { label: "Waist", code: "waist" },
-      { label: "Seat", code: "seat" },
-      { label: "Sleeve Length", code: "sleeve_length" },
-      { label: "Bicep", code: "bicep" },
-      { label: "Cuff", code: "cuff" },
-      { label: "Back Width", code: "back_width" },
-      { label: "Front Width", code: "front_width" },
-      { label: "Neck", code: "neck" },
-      choice("Vent", "vent", ["None", "Single", "Double"]),
-      choice("Buttons", "buttons", ["1", "2", "3"]),
-      choice("Lapel", "lapel", ["Notch", "Peak", "Shawl"]),
-    ],
-  },
-  {
-    name: "Waistcoat",
-    slug: "waistcoat",
-    category: "western",
-    fields: [
-      { label: "Length", code: "length" },
-      { label: "Shoulder", code: "shoulder" },
-      { label: "Chest", code: "chest" },
-      { label: "Waist", code: "waist" },
-      { label: "Seat", code: "seat" },
-      { label: "Front Width", code: "front_width" },
-      { label: "Back Width", code: "back_width" },
-      { label: "Neck Depth", code: "neck_depth" },
-      choice("Buttons", "buttons", ["4", "5", "6"]),
-      choice("Back", "back_style", ["Same cloth", "Lining", "Adjuster"]),
-    ],
-  },
-  {
-    name: "Kurta",
-    slug: "kurta",
-    category: "mens_ethnic",
-    fields: [
-      { label: "Length", code: "length" },
-      { label: "Shoulder", code: "shoulder" },
-      { label: "Chest", code: "chest" },
-      { label: "Waist", code: "waist" },
-      { label: "Seat", code: "seat" },
-      { label: "Sleeve Length", code: "sleeve_length" },
-      { label: "Bicep", code: "bicep" },
-      { label: "Cuff", code: "cuff" },
-      { label: "Neck", code: "neck" },
-      { label: "Slit Length", code: "slit_length" },
-      choice("Collar", "collar_style", ["Band", "Mandarin", "Round", "V-neck"]),
-    ],
-  },
-  {
-    name: "Bandhgala",
-    slug: "bandhgala",
-    category: "mens_ethnic",
-    fields: [
-      { label: "Length", code: "length" },
-      { label: "Shoulder", code: "shoulder" },
-      { label: "Chest", code: "chest" },
-      { label: "Waist", code: "waist" },
-      { label: "Seat", code: "seat" },
-      { label: "Sleeve Length", code: "sleeve_length" },
-      { label: "Bicep", code: "bicep" },
-      { label: "Cuff", code: "cuff" },
-      { label: "Collar Height", code: "collar_height" },
-      { label: "Back Width", code: "back_width" },
-      { label: "Front Width", code: "front_width" },
-      choice("Vent", "vent", ["None", "Single", "Double"]),
-      choice("Buttons", "buttons", ["4", "5", "6"]),
-    ],
-  },
-  {
-    name: "Sherwani",
-    slug: "sherwani",
-    category: "mens_ethnic",
-    fields: [
-      { label: "Length", code: "length" },
-      { label: "Shoulder", code: "shoulder" },
-      { label: "Chest", code: "chest" },
-      { label: "Waist", code: "waist" },
-      { label: "Seat", code: "seat" },
-      { label: "Sleeve Length", code: "sleeve_length" },
-      { label: "Bicep", code: "bicep" },
-      { label: "Cuff", code: "cuff" },
-      { label: "Collar Height", code: "collar_height" },
-      { label: "Back Width", code: "back_width" },
-      { label: "Front Width", code: "front_width" },
-      { label: "Slit Length", code: "slit_length" },
-      { label: "Flare", code: "flare", hint: "Sweep at the hem" },
-    ],
-  },
-  {
-    name: "Blouse",
-    slug: "blouse",
-    category: "womens_ethnic",
-    fields: [
-      { label: "Blouse Length", code: "blouse_length" },
-      { label: "Shoulder", code: "shoulder" },
-      { label: "Upper Chest", code: "upper_chest" },
-      { label: "Bust", code: "bust" },
-      { label: "Waist", code: "waist" },
-      { label: "Armhole", code: "armhole" },
-      { label: "Sleeve Length", code: "sleeve_length" },
-      { label: "Around Arm", code: "around_arm" },
-      { label: "Front Neck Depth", code: "front_neck_depth" },
-      { label: "Back Neck Depth", code: "back_neck_depth" },
-      { label: "Cross Front", code: "cross_front" },
-      { label: "Cross Back", code: "cross_back" },
-      { label: "Apex to Apex", code: "apex_to_apex" },
-      { label: "Shoulder to Apex", code: "shoulder_to_apex" },
-      choice("Closing", "closing", ["Back hook", "Front hook", "Zip", "Dori"]),
-      choice("Padding", "padding", ["No", "Yes"]),
-    ],
-  },
-  {
-    name: "Lehenga",
-    slug: "lehenga",
-    category: "womens_ethnic",
-    fields: [
-      { label: "Length", code: "length", hint: "Waist to floor" },
-      { label: "Waist", code: "waist" },
-      { label: "Hip", code: "hip" },
-      { label: "Ghera", code: "ghera", hint: "Flare / sweep at the hem" },
-      { label: "Waistband Height", code: "waistband_height" },
-      { label: "Kali count", code: "kali_count", unit: "", type: "number" },
-      choice("Closing", "closing", ["Side zip", "Back zip", "Dori", "Elastic"]),
-      choice("Can-can", "can_can", ["No", "Yes"]),
-    ],
-  },
-  {
-    name: "Anarkali / Kameez",
-    slug: "anarkali-kameez",
-    category: "womens_ethnic",
-    fields: [
-      { label: "Length", code: "length" },
-      { label: "Shoulder", code: "shoulder" },
-      { label: "Bust", code: "bust" },
-      { label: "Waist", code: "waist" },
-      { label: "Hip", code: "hip" },
-      { label: "Yoke Length", code: "yoke_length" },
-      { label: "Sleeve Length", code: "sleeve_length" },
-      { label: "Around Arm", code: "around_arm" },
-      { label: "Armhole", code: "armhole" },
-      { label: "Front Neck Depth", code: "front_neck_depth" },
-      { label: "Back Neck Depth", code: "back_neck_depth" },
-      { label: "Ghera", code: "ghera", hint: "Flare / sweep at the hem" },
-      choice("Closing", "closing", ["Side zip", "Back zip", "Front open"]),
-    ],
-  },
+  { name: "Shirt", slug: "shirt", category: "western", groups: ["group-upper"] },
+  /* Seeded originally as "Trouser". His word is Pant, and the existing row is
+     adopted rather than duplicated so past orders keep their garment. */
+  { name: "Pant", slug: "pant", category: "western", groups: ["group-lower"], wasSlug: "trouser" },
+  { name: "Kurta", slug: "kurta", category: "mens_ethnic", groups: ["group-upper"] },
+  { name: "Coat", slug: "coat", category: "western", groups: ["group-upper"], wasSlug: "suit-blazer" },
+  /* A suit is coat and trousers, so these three carry all nineteen numbers. */
+  { name: "Tuxedo Suit", slug: "tuxedo-suit", category: "western", groups: ["group-upper", "group-lower"] },
+  { name: "3pcs Suit", slug: "suit-3pcs", category: "western", groups: ["group-upper", "group-lower"] },
+  { name: "2pcs Suit", slug: "suit-2pcs", category: "western", groups: ["group-upper", "group-lower"] },
+  { name: "W-Coat", slug: "w-coat", category: "western", groups: ["group-upper"], wasSlug: "waistcoat" },
+  { name: "Bandi", slug: "bandi", category: "mens_ethnic", groups: ["group-upper"] },
+  { name: "Bandhgala", slug: "bandhgala", category: "mens_ethnic", groups: ["group-upper"] },
+  { name: "Sherwani", slug: "sherwani", category: "mens_ethnic", groups: ["group-upper"] },
+  { name: "Indowestern", slug: "indowestern", category: "mens_ethnic", groups: ["group-upper"] },
+  { name: "Shorts", slug: "shorts", category: "western", groups: ["group-lower"] },
+  { name: "Dhoti", slug: "dhoti", category: "mens_ethnic", groups: ["group-lower"] },
+  { name: "Chudi Pant", slug: "chudi-pant", category: "womens_ethnic", groups: ["group-lower"] },
 ];
+
+/* Invented during the first build and not on his sheet. HIDDEN, never
+   deleted: orders already placed keep their own copy of everything, and one
+   toggle in Settings -> Garment types brings any of them back. His sheet is a
+   men's form, so if the studio also takes bridal work these are the rows to
+   re-enable rather than recreate. */
+const RETIRE_SLUGS = ["blouse", "lehenga", "anarkali-kameez"];
 
 /* Prints in the letterhead on all three copies. Editable in Settings. */
 const SHOP_SETTINGS: Record<string, string> = {
   shop_name: "ARSU",
-  shop_tagline: "Ethnic & Western Bespoke Studio",
+  shop_tagline: "Bespoke studio",
   shop_address:
     '"Suprabatha", No. 13, 1st Cross, 1st Main,\nNagashetty Halli, RMV 2nd Stage,\nBangalore 560094',
   shop_phone: "+91 80508 00582",
+  shop_store_phone: "080 4205 3779",
+  shop_email: "arsubespokestudio@gmail.com",
   shop_instagram: "@arsubespokestudio",
   bill_footer: "Thank you. Please bring this receipt when collecting.",
+  /* The terms along the bottom of his own sheet, in his wording. */
+  shop_terms:
+    "Kindly collect your outfits before 8.30pm.\n" +
+    "Kindly collect your outfits within 30 days from the delivery date.\n" +
+    "Store time - Mon-Sat: 10am to 8.30pm  |  Sunday: 10am to 4pm",
 };
+
+/** Insert whichever of these fields the owner does not have yet. */
+function seedFields(ownerId: number, fields: FieldSeed[]): number {
+  let added = 0;
+  for (const [index, field] of fields.entries()) {
+    const existing = db
+      .select({ id: measurementFields.id })
+      .from(measurementFields)
+      .where(
+        and(
+          eq(measurementFields.garmentTypeId, ownerId),
+          eq(measurementFields.code, field.code),
+        ),
+      )
+      .get();
+    if (existing) continue;
+
+    db.insert(measurementFields)
+      .values({
+        garmentTypeId: ownerId,
+        label: field.label,
+        code: field.code,
+        hint: field.hint ?? null,
+        unit: field.unit ?? "in",
+        fieldType: field.type ?? "number",
+        choices: null,
+        groupName: "Measurements",
+        sortOrder: index * 10,
+      })
+      .run();
+    added += 1;
+  }
+  return added;
+}
 
 export async function seed() {
   let addedTypes = 0;
   let addedFields = 0;
+  let addedLinks = 0;
+  let retired = 0;
 
+  /* 1. The groups. They never appear on an order, and a negative sort order
+        keeps them at the top of the Garment types screen where they belong. */
+  const groupIdBySlug = new Map<string, number>();
+  for (const [index, group] of GROUPS.entries()) {
+    let row = db
+      .select()
+      .from(garmentTypes)
+      .where(eq(garmentTypes.slug, group.slug))
+      .get();
+
+    if (!row) {
+      row = db
+        .insert(garmentTypes)
+        .values({
+          name: group.name,
+          slug: group.slug,
+          category: "other",
+          isTemplate: true,
+          sortOrder: -100 + index,
+        })
+        .returning()
+        .get();
+      addedTypes += 1;
+    } else if (!row.isTemplate) {
+      db.update(garmentTypes)
+        .set({ isTemplate: true })
+        .where(eq(garmentTypes.id, row.id))
+        .run();
+    }
+
+    groupIdBySlug.set(group.slug, row.id);
+    addedFields += seedFields(row.id, group.fields);
+  }
+
+  /* 2. The garments, and which groups each one draws from. */
   for (const [index, garment] of GARMENTS.entries()) {
     let row = db
       .select()
       .from(garmentTypes)
       .where(eq(garmentTypes.slug, garment.slug))
       .get();
+
+    if (!row && garment.wasSlug) {
+      /* Adopt the older row rather than create a second one for the same
+         garment. Orders keep their own garment_label, so renaming here cannot
+         alter a bill already printed. */
+      const old = db
+        .select()
+        .from(garmentTypes)
+        .where(eq(garmentTypes.slug, garment.wasSlug))
+        .get();
+      if (old) {
+        db.update(garmentTypes)
+          .set({ slug: garment.slug, name: garment.name })
+          .where(eq(garmentTypes.id, old.id))
+          .run();
+        row = { ...old, slug: garment.slug, name: garment.name };
+      }
+    }
 
     if (!row) {
       row = db
@@ -276,34 +269,81 @@ export async function seed() {
       addedTypes += 1;
     }
 
-    for (const [fieldIndex, field] of garment.fields.entries()) {
-      const existing = db
-        .select({ id: measurementFields.id })
-        .from(measurementFields)
+    for (const [groupIndex, groupSlug] of garment.groups.entries()) {
+      const groupId = groupIdBySlug.get(groupSlug);
+      if (groupId === undefined) continue;
+
+      const linked = db
+        .select({ id: garmentTypeGroups.id })
+        .from(garmentTypeGroups)
         .where(
           and(
-            eq(measurementFields.garmentTypeId, row.id),
-            eq(measurementFields.code, field.code),
+            eq(garmentTypeGroups.garmentTypeId, row.id),
+            eq(garmentTypeGroups.groupId, groupId),
           ),
         )
         .get();
-      if (existing) continue;
+      if (linked) continue;
 
-      db.insert(measurementFields)
+      db.insert(garmentTypeGroups)
         .values({
           garmentTypeId: row.id,
-          label: field.label,
-          code: field.code,
-          hint: field.hint ?? null,
-          unit: field.unit ?? "in",
-          fieldType: field.type ?? "number",
-          choices: field.choices ? JSON.stringify(field.choices) : null,
-          groupName: field.group ?? "Measurements",
-          sortOrder: fieldIndex * 10,
+          groupId,
+          sortOrder: groupIndex * 10,
         })
         .run();
-      addedFields += 1;
+      addedLinks += 1;
     }
+
+    if (garment.fields) addedFields += seedFields(row.id, garment.fields);
+  }
+
+  /* 3. Remove the invented per-garment fields a group now covers.
+   *
+   * A Shirt was seeded with twelve invented fields. Now that it inherits
+   * Arsu's real eleven from the Upper body group, leaving both would show him
+   * TWENTY-FOUR boxes to fill - worse than before groups existed, and the
+   * exact opposite of the point.
+   *
+   * Only fields holding NO client measurement are removed, so nothing anyone
+   * actually wrote down can be lost. A field with data stays, and appears as
+   * an extra on that garment until he deletes it himself.
+   *
+   * Orders already placed are untouched: order_item_measurements keeps its own
+   * copy of every label, unit and value, and its field_id is nullable with ON
+   * DELETE SET NULL precisely so removing a field can never blank a
+   * measurement something was cut to. Rule 1 in schema.ts earning its keep.
+   *
+   * This runs here rather than as a migration because it has to happen AFTER
+   * the groups above are linked - a migration runs before any of this exists
+   * and would match nothing. */
+  const removedFields = db.run(sql`
+    DELETE FROM measurement_fields
+     WHERE garment_type_id IN (SELECT garment_type_id FROM garment_type_groups)
+       AND code NOT LIKE 'up!_%' ESCAPE '!'
+       AND code NOT LIKE 'lo!_%' ESCAPE '!'
+       AND NOT EXISTS (
+         SELECT 1 FROM measurement_values v WHERE v.field_id = measurement_fields.id
+       )
+  `).changes;
+
+  /* 4. Hide what was invented rather than observed. Hidden, not deleted. */
+  const stale = db
+    .select({ id: garmentTypes.id })
+    .from(garmentTypes)
+    .where(
+      and(
+        inArray(garmentTypes.slug, RETIRE_SLUGS),
+        eq(garmentTypes.isActive, true),
+      ),
+    )
+    .all();
+  for (const row of stale) {
+    db.update(garmentTypes)
+      .set({ isActive: false })
+      .where(eq(garmentTypes.id, row.id))
+      .run();
+    retired += 1;
   }
 
   let addedSettings = 0;
@@ -321,6 +361,9 @@ export async function seed() {
     `Seed complete.\n` +
       `  garment types : ${totalTypes} total (${addedTypes} added this run)\n` +
       `  fields        : ${totalFields} total (${addedFields} added this run)\n` +
+      `  group links   : ${addedLinks} added this run\n` +
+      `  fields dropped: ${removedFields} invented one(s) a group now covers\n` +
+      `  retired       : ${retired} hidden this run\n` +
       `  settings      : ${addedSettings} added this run`,
   );
 }

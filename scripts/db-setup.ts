@@ -149,8 +149,14 @@ async function main() {
   const pending = MIGRATIONS.filter((m) => !done.has(m.id));
 
   if (pending.length === 0) {
-    log("schema is up to date, nothing to do");
+    log("schema is up to date");
     db.close();
+    /* Re-seed anyway. The seed only ever adds what is missing and never
+       overwrites an edit, so this is how a shop ALREADY IN USE picks up new
+       reference data - the measurement groups, a garment type his own sheet
+       turned out to have. Without this, new reference data only reaches a
+       fresh install, and the one machine that matters is never fresh again. */
+    await reseed();
     return;
   }
 
@@ -186,6 +192,16 @@ async function main() {
   }
 
   log("migrations applied");
+
+  /* After the schema, the reference data a new migration exists to carry. */
+  await reseed();
+}
+
+/** Only ever adds what is missing; never overwrites anything Arsu has edited. */
+async function reseed() {
+  log("checking reference data…");
+  const { seed } = await import("../db/seed");
+  await seed();
 }
 
 main().catch((error) => {

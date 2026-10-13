@@ -143,21 +143,23 @@ export const garmentTypes = sqliteTable(
      * Nineteen numbers for the whole business.
      *
      * So "Upper body" and "Lower body" are garment types carrying isTemplate:
-     * they hold the shared fields and can never be ordered. Every real garment
-     * points inheritsFromId at one of them, and its measuring form is the
-     * template's fields followed by any of its own — a Kurta's extra length.
+     * they hold the shared fields and can never be ordered. Real garments are
+     * linked to them through `garmentTypeGroups`, and a garment's measuring
+     * form is its groups' fields followed by any of its own — a Kurta's extra
+     * length.
      *
-     * Modelled this way rather than as new tables because
+     * A link TABLE rather than a column because a suit needs both halves:
+     * Tuxedo, 3pcs and 2pcs Suit are coat and trousers together, so they carry
+     * all nineteen numbers. Everything else belongs to one group.
+     *
+     * Modelled as garment types rather than as a new kind of thing because
      * measurement_fields.garment_type_id and measurement_sets.garment_type_id
      * are both NOT NULL, SQLite cannot drop NOT NULL without rebuilding the
      * table, and rebuilding either one fails on the foreign keys
-     * order_item_measurements holds into them. Two ADD COLUMNs do the whole
-     * job, and a client's upper-body measurements become an ordinary
-     * measurement_set against the template — no new concepts downstream. */
-    inheritsFromId: integer("inherits_from_id").references(
-      (): AnySQLiteColumn => garmentTypes.id,
-      { onDelete: "set null" },
-    ),
+     * order_item_measurements holds into them. This way a client's upper-body
+     * measurements are an ordinary measurement_set against the template, and
+     * nothing downstream — snapshots, printing, history — needs to know that
+     * measurement groups exist at all. */
     /** A measurement group rather than a garment. Never offered on an order. */
     isTemplate: integer("is_template", { mode: "boolean" })
       .notNull()
@@ -182,6 +184,37 @@ export const tailors = sqliteTable(
     sortOrder: integer("sort_order").notNull().default(0),
   },
   (t) => [index("tailors_active_idx").on(t.isActive)],
+);
+
+/**
+ * Which measurement groups a garment takes its fields from.
+ *
+ * One row for most garments — a Shirt is upper body. Two for a suit, which is
+ * coat and trousers and therefore needs both halves. Both sides point at
+ * `garment_types`: the group is the row carrying `isTemplate`.
+ *
+ * Deleting a group unlinks it rather than deleting the garment, and deleting
+ * a garment takes its links with it. Neither can touch an order already
+ * placed, because an order keeps its own copy of every measurement.
+ */
+export const garmentTypeGroups = sqliteTable(
+  "garment_type_groups",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    garmentTypeId: integer("garment_type_id")
+      .notNull()
+      .references(() => garmentTypes.id, { onDelete: "cascade" }),
+    /** The template garment type whose fields are shared. */
+    groupId: integer("group_id")
+      .notNull()
+      .references(() => garmentTypes.id, { onDelete: "cascade" }),
+    /** Upper body before lower body on a suit's card, as on his sheet. */
+    sortOrder: integer("sort_order").notNull().default(0),
+  },
+  (t) => [
+    uniqueIndex("garment_type_groups_idx").on(t.garmentTypeId, t.groupId),
+    index("garment_type_groups_group_idx").on(t.groupId),
+  ],
 );
 
 export const measurementFields = sqliteTable(

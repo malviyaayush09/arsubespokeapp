@@ -1,6 +1,7 @@
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import {
+  garmentTypeGroups,
   garmentTypes,
   measurementFields,
   measurementSets,
@@ -8,13 +9,64 @@ import {
   type MeasurementField,
 } from "@/db/schema";
 
-export function getFieldsFor(garmentTypeId: number): MeasurementField[] {
+/** The fields a garment owns outright, ignoring anything it inherits. */
+export function getOwnFieldsFor(garmentTypeId: number): MeasurementField[] {
   return db
     .select()
     .from(measurementFields)
     .where(eq(measurementFields.garmentTypeId, garmentTypeId))
     .orderBy(asc(measurementFields.sortOrder), asc(measurementFields.id))
     .all();
+}
+
+/** The groups a garment draws from, in the order they get measured. */
+export function getGroupsFor(
+  garmentTypeId: number,
+): { id: number; name: string }[] {
+  return db
+    .select({ id: garmentTypes.id, name: garmentTypes.name })
+    .from(garmentTypeGroups)
+    .innerJoin(garmentTypes, eq(garmentTypes.id, garmentTypeGroups.groupId))
+    .where(eq(garmentTypeGroups.garmentTypeId, garmentTypeId))
+    .orderBy(asc(garmentTypeGroups.sortOrder), asc(garmentTypes.id))
+    .all();
+}
+
+/**
+ * Every field on a garment's measuring form: the fields of each group it
+ * belongs to, in group order, then anything it owns outright.
+ *
+ * A Shirt is the eleven upper-body fields. A Tuxedo Suit is those eleven plus
+ * the eight lower-body ones, because a suit is coat and trousers. A Kurta is
+ * the eleven plus its own extra length.
+ *
+ * A garment linked to no group behaves exactly as before - its own fields and
+ * nothing else - which is what every garment looked like before groups
+ * existed, and what a shop that has not been migrated still looks like.
+ */
+export function getFieldsFor(garmentTypeId: number): MeasurementField[] {
+  const groupIds = getGroupsFor(garmentTypeId).map((g) => g.id);
+
+  const inherited =
+    groupIds.length === 0
+      ? []
+      : db
+          .select()
+          .from(measurementFields)
+          .where(inArray(measurementFields.garmentTypeId, groupIds))
+          .orderBy(
+            asc(measurementFields.sortOrder),
+            asc(measurementFields.id),
+          )
+          .all();
+
+  /* Grouped explicitly rather than trusting the SQL order, so a suit reads
+     upper body then lower the way his sheet is laid out. */
+  const ordered = groupIds.flatMap((id) =>
+    inherited.filter((f) => f.garmentTypeId === id),
+  );
+
+  return [...ordered, ...getOwnFieldsFor(garmentTypeId)];
 }
 
 export function parseChoices(field: MeasurementField): string[] {

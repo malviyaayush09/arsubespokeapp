@@ -116,4 +116,35 @@ export const MIGRATIONS: Migration[] = [
       }
     },
   },
+  {
+    id: "0004_garment_type_groups",
+    description: "Link table: which measurement groups a garment draws from",
+    run: (db) => {
+      /* Supersedes the inherits_from_id column that 0003 adds. A garment can
+         belong to TWO groups - Tuxedo, 3pcs and 2pcs Suit are coat and
+         trousers together, so they carry all nineteen numbers - and a single
+         column cannot say that.
+
+         0003 is left exactly as released rather than renumbered: a migration
+         that has gone out must never change, or two databases can disagree
+         about what "0003" meant. The column it adds is simply unused, which
+         costs nothing. */
+      if (!hasTable(db, "garment_type_groups")) {
+        db.exec(`
+          CREATE TABLE garment_type_groups (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            garment_type_id INTEGER NOT NULL REFERENCES garment_types(id) ON DELETE CASCADE,
+            group_id INTEGER NOT NULL REFERENCES garment_types(id) ON DELETE CASCADE,
+            sort_order INTEGER NOT NULL DEFAULT 0
+          )
+        `);
+        db.exec(
+          "CREATE UNIQUE INDEX garment_type_groups_idx ON garment_type_groups (garment_type_id, group_id)",
+        );
+        db.exec(
+          "CREATE INDEX garment_type_groups_group_idx ON garment_type_groups (group_id)",
+        );
+      }
+    },
+  },
 ];
