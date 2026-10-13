@@ -14,6 +14,26 @@ import { OrderItemCard } from "@/components/order-item-card";
 import { OrderBilling } from "@/components/order-billing";
 import { AddGarmentForm, OrderMetaForm } from "@/components/order-extras";
 import { requireUnlocked } from "@/lib/security";
+import type { OrderStatus } from "@/db/schema";
+import type { TemplateKey } from "@/lib/whatsapp";
+
+/**
+ * The one message worth sending at this point in the job.
+ *
+ * He had five buttons and had to pick; but the job already implies the
+ * answer. A garment on the shelf needs "ready for collection" - and if money
+ * is owed, the ready message already carries the balance.
+ */
+function messageForStatus(
+  status: OrderStatus,
+  balancePaise: number,
+): TemplateKey {
+  if (status === "ready") return "ready";
+  if (status === "delivered") return balancePaise > 0 ? "balance" : "ready";
+  if (status === "trial") return "trial";
+  if (status === "placed") return "confirmed";
+  return "trial";
+}
 
 export const dynamic = "force-dynamic";
 
@@ -66,16 +86,11 @@ export default async function OrderPage({
           </p>
         </div>
 
+        {/* ONE print button. The print page itself already offers the three
+            copies individually, so the other three buttons here were the same
+            choice offered twice — and "Print all 3" is what he does, because
+            three copies is what he photocopied before this app existed. */}
         <div className="flex flex-wrap gap-2">
-          <Link href={`/orders/${order.id}/print/tailor`} className="btn-secondary btn-sm">
-            Tailor copy
-          </Link>
-          <Link href={`/orders/${order.id}/print/client`} className="btn-secondary btn-sm">
-            Client copy
-          </Link>
-          <Link href={`/orders/${order.id}/print/shop`} className="btn-secondary btn-sm">
-            Shop copy
-          </Link>
           <Link href={`/orders/${order.id}/print/all`} className="btn-primary btn-sm">
             Print all 3
           </Link>
@@ -84,22 +99,20 @@ export default async function OrderPage({
 
       <OrderStatusBar orderId={order.id} status={order.status} />
 
+      {/* ONE WhatsApp button, and it knows where the garment is: at Ready the
+          sensible message is "ready for collection", during stitching it is
+          the trial call. Five buttons made him choose between five things
+          when the job already implies the answer. */}
       <div className="no-print mt-3 flex flex-wrap items-center gap-2">
-        <RepeatOrderButton orderId={order.id} orderNo={order.orderNo} />
-
-        <span className="ml-2 text-xs text-muted">WhatsApp:</span>
-        <WaButton phone={client.phone} template="confirmed" context={waContext} />
-        <WaButton phone={client.phone} template="trial" context={waContext} />
-        <WaButton phone={client.phone} template="ready" context={waContext} />
-        {totals.balancePaise > 0 ? (
-          <WaButton phone={client.phone} template="balance" context={waContext} />
-        ) : null}
-        <WaButton phone={client.phone} template="delayed" context={waContext} />
+        <WaButton
+          phone={client.phone}
+          template={messageForStatus(order.status, totals.balancePaise)}
+          context={waContext}
+        />
+        <span className="text-xs text-muted">
+          Opens WhatsApp with the message written. You press send.
+        </span>
       </div>
-      <p className="no-print mt-1 text-xs text-muted">
-        These open WhatsApp with the message already written — nothing is sent
-        until you press send there.
-      </p>
 
       {blanks > 0 ? (
         <p className="mt-3 rounded-md border border-danger/25 bg-danger-soft px-4 py-2.5 text-sm text-danger">
@@ -141,6 +154,12 @@ export default async function OrderPage({
               lineTotalPaise: item.lineTotalPaise,
             }))}
           />
+
+          {/* Repeat order lives down here, not in the header. It starts the
+              NEXT job and has nothing to do with handling this one. */}
+          <div className="no-print">
+            <RepeatOrderButton orderId={order.id} orderNo={order.orderNo} />
+          </div>
 
           <OrderMetaForm
             orderId={order.id}

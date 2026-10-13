@@ -37,13 +37,29 @@ export default async function SettingsPage() {
 
   return (
     <>
-      <PageHeader title="Settings" />
+      <PageHeader
+        title="Shop setup"
+        subtitle="Rates, what you stitch, backup and the month's figures. Set once, then rarely."
+      />
 
       <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {/* Reports and Day book live here rather than in the main nav. They
+            are something you read when you choose to, not a place to pass
+            through while a client waits. */}
+        <Card
+          href="/daybook"
+          title="Day book"
+          detail="What came in today"
+        />
+        <Card
+          href="/reports"
+          title="Monthly figures"
+          detail="Orders, billed, collected, outstanding"
+        />
         <Card
           href="/settings/garments"
-          title="Garment types"
-          detail={`${garments.length} configured`}
+          title="What you stitch"
+          detail={`${garments.length} garments and what gets measured`}
         />
         <Card
           href="/settings/tailors"

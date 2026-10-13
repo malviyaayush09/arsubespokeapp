@@ -16,14 +16,25 @@ export const viewport: Viewport = {
   initialScale: 1,
 };
 
+/* THREE PLACES, not six.
+ *
+ * Dashboard, Orders, Day book and Reports were four destinations each
+ * answering one question, and he had to know which one held the answer. His
+ * day has three things in it: what is happening now, the jobs, and the
+ * people. Day book and Reports move behind Today, which is where you look
+ * when you want to know about today anyway.
+ *
+ * "Shop setup" rather than "Settings", and last: rates, what we stitch, what
+ * we measure, backup, PIN, import. That screen is for whoever maintains this,
+ * not for the man with a client waiting at the counter, and the name should
+ * say so. */
 const NAV = [
-  { href: "/", label: "Dashboard" },
+  { href: "/", label: "Today" },
   { href: "/orders", label: "Orders" },
   { href: "/clients", label: "Clients" },
-  { href: "/daybook", label: "Day book" },
-  { href: "/reports", label: "Reports" },
-  { href: "/settings", label: "Settings" },
 ];
+
+const SETUP = { href: "/settings", label: "Shop setup" };
 
 export default async function RootLayout({
   children,
@@ -79,6 +90,16 @@ export default async function RootLayout({
             </nav>
 
             <div className="ml-auto flex items-center gap-2">
+              {/* Deliberately set apart from the three, and quieter than
+                  them: a destination you go to on purpose, not one you pass
+                  through during a day's work. */}
+              <Link
+                href={SETUP.href}
+                className="rounded-md px-3 py-2 text-sm text-bone/50 transition hover:bg-white/10 hover:text-bone"
+              >
+                {SETUP.label}
+              </Link>
+
               {isPinEnabled() ? (
                 <form action={lockNow}>
                   <button
