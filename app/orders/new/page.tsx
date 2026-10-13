@@ -1,18 +1,35 @@
-import Link from "next/link";
-import { notFound } from "next/navigation";
 import { desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { CATEGORY_LABELS, clients } from "@/db/schema";
-import { listGarmentTypes, nextOrderNo } from "@/lib/orders";
-import { lastMeasuredOn } from "@/lib/measurements";
-import { formatDate, today } from "@/lib/format";
+import { CATEGORY_LABELS, clients, measurementSets } from "@/db/schema";
+import {
+  listGarmentTypes,
+  listMeasurementGroups,
+  nextOrderNo,
+} from "@/lib/orders";
+import {
+  getGroupsFor,
+  getOwnMeasurementFields,
+  parseChoices,
+} from "@/lib/measurements";
+import { today } from "@/lib/format";
 import { PageHeader } from "@/components/ui";
-import { ClientPicker } from "@/components/client-picker";
 import { NewOrderForm } from "@/components/new-order-form";
 import { requireUnlocked } from "@/lib/security";
 
 export const dynamic = "force-dynamic";
 
+/* ONE SCREEN, top to bottom, in the order the conversation happens.
+ *
+ * It used to take four: Clients -> New client -> (which lands on his page) ->
+ * Take measurements -> New order. That sequence is the database showing
+ * through: a client record has to exist before an order can point at it. It
+ * is not how a counter works. Someone walks in and wants two shirts; on paper
+ * that is one sheet, filled from the top.
+ *
+ * So the client is chosen or created here, the measurements are taken here if
+ * they have never been taken, and a new client feels no different from a
+ * returning one.
+ */
 export default async function NewOrderPage({
   searchParams,
 }: {
@@ -20,90 +37,84 @@ export default async function NewOrderPage({
 }) {
   await requireUnlocked();
 
+  /* Still honoured, so "New order" from a client's own page arrives with him
+     already chosen. It is simply no longer the only way in. */
   const { clientId } = await searchParams;
+  const preselected = Number(clientId) || null;
 
-  /* Step one: who is it for. Choosing the client first is what lets the next
-     screen show, per garment, whether measurements already exist. */
-  if (!clientId) {
-    const rows = db
-      .select({
-        id: clients.id,
-        name: clients.name,
-        phone: clients.phone,
-        orderCount: sql<number>`COALESCE((
-          SELECT COUNT(*) FROM orders o WHERE o.client_id = clients.id
-        ), 0)`,
-      })
-      .from(clients)
-      .orderBy(desc(clients.updatedAt))
-      .all();
+  const people = db
+    .select({
+      id: clients.id,
+      name: clients.name,
+      phone: clients.phone,
+      orderCount: sql<number>`COALESCE((
+        SELECT COUNT(*) FROM orders o WHERE o.client_id = clients.id
+      ), 0)`,
+    })
+    .from(clients)
+    .orderBy(desc(clients.updatedAt))
+    .all();
 
-    return (
-      <>
-        <PageHeader
-          title="New order"
-          subtitle="Who is it for?"
-          action={
-            <Link href="/clients/new" className="btn-secondary btn-sm">
-              New client
-            </Link>
-          }
-        />
-        {rows.length === 0 ? (
-          <div className="card p-8 text-center">
-            <p className="font-medium">No clients yet</p>
-            <p className="mt-1 text-sm text-muted">
-              An order needs someone to belong to.
-            </p>
-            <Link href="/clients/new" className="btn-primary mt-4">
-              Add the first client
-            </Link>
-          </div>
-        ) : (
-          <ClientPicker clients={rows} hrefBase="/orders/new?clientId=" />
-        )}
-      </>
-    );
-  }
-
-  const id = Number(clientId);
-  const client = db.select().from(clients).where(eq(clients.id, id)).get();
-  if (!client) notFound();
+  const groups = listMeasurementGroups().map((group) => ({
+    id: group.id,
+    name: group.name,
+    fields: getOwnMeasurementFields(group.id).map((field) => ({
+      id: field.id,
+      label: field.label,
+      unit: field.unit,
+      hint: field.hint,
+      fieldType: field.fieldType,
+      choiceList: parseChoices(field),
+    })),
+  }));
 
   const garments = listGarmentTypes().map((type) => ({
     id: type.id,
     name: type.name,
     category: type.category,
     categoryLabel: CATEGORY_LABELS[type.category],
-    /* Drawn from the garment's measurement groups, so a Shirt reads as
-       measured the moment the client's upper body has been. */
-    measuredOn: (() => {
-      const on = lastMeasuredOn(id, type.id);
-      return on ? formatDate(on) : null;
-    })(),
+    /* Which halves of the body this garment needs. The form uses it to work
+       out, from whatever is ticked, which measurements are missing. */
+    groupIds: getGroupsFor(type.id).map((g) => g.id),
   }));
+
+  /* Who has been measured, for which half, and when. Two groups and one row
+     per session, so this stays a small query however many clients there are -
+     and having it up front means ticking a garment can reveal the missing
+     measurements immediately, with no round trip to the server. */
+  const measuredRows = db
+    .select({
+      clientId: measurementSets.clientId,
+      groupId: measurementSets.garmentTypeId,
+      takenOn: sql<string>`MAX(${measurementSets.takenOn})`,
+    })
+    .from(measurementSets)
+    .groupBy(measurementSets.clientId, measurementSets.garmentTypeId)
+    .all();
+
+  const measured: Record<number, Record<number, string>> = {};
+  for (const row of measuredRows) {
+    (measured[row.clientId] ??= {})[row.groupId] = row.takenOn;
+  }
+
+  const preselectedExists =
+    preselected !== null &&
+    (people.some((p) => p.id === preselected) ||
+      db.select().from(clients).where(eq(clients.id, preselected)).get() !==
+        undefined);
 
   return (
     <>
       <PageHeader
         title="New order"
-        subtitle={
-          <>
-            For{" "}
-            <Link href={`/clients/${client.id}`} className="text-gold hover:underline">
-              {client.name}
-            </Link>{" "}
-            · {client.phone} ·{" "}
-            <Link href="/orders/new" className="text-gold hover:underline">
-              change
-            </Link>
-          </>
-        }
+        subtitle="Who it is for, what they want, and the measurements — on one screen."
       />
       <NewOrderForm
-        clientId={client.id}
-        clientName={client.name}
+        people={people}
+        preselectedClientId={preselectedExists ? preselected : null}
         garments={garments}
+        groups={groups}
+        measured={measured}
         today={today()}
         suggestedOrderNo={nextOrderNo()}
       />

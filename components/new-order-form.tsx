@@ -1,57 +1,339 @@
 "use client";
 
-import { useActionState, useState } from "react";
-import Link from "next/link";
+import { useActionState, useMemo, useState } from "react";
 import { createOrder, type ActionState } from "@/app/actions/orders";
 import { SubmitButton } from "@/components/forms";
 import { FormError } from "@/components/ui";
+
+export type Person = {
+  id: number;
+  name: string;
+  phone: string;
+  orderCount: number;
+};
 
 export type GarmentChoice = {
   id: number;
   name: string;
   category: string;
   categoryLabel: string;
-  /** 'YYYY-MM-DD' of the client's latest set, or null if never measured. */
-  measuredOn: string | null;
+  /** The measurement groups this garment needs. */
+  groupIds: number[];
 };
 
+export type GroupChoice = {
+  id: number;
+  name: string;
+  fields: {
+    id: number;
+    label: string;
+    unit: string;
+    hint: string | null;
+    fieldType: string;
+    choiceList: string[];
+  }[];
+};
+
+/**
+ * One order, one screen.
+ *
+ * Three things in the order they are asked at the counter: who, what, and the
+ * measurements. The last section only appears when something ticked actually
+ * needs measuring - a returning client whose numbers are on file never sees
+ * it, and a new client is measured without leaving the page.
+ */
 export function NewOrderForm({
-  clientId,
-  clientName,
+  people,
+  preselectedClientId,
   garments,
+  groups,
+  measured,
   today,
   suggestedOrderNo,
 }: {
-  clientId: number;
-  clientName: string;
+  people: Person[];
+  preselectedClientId: number | null;
   garments: GarmentChoice[];
+  groups: GroupChoice[];
+  /** clientId -> groupId -> date last measured. */
+  measured: Record<number, Record<number, string>>;
   today: string;
-  /** The next number in the sequence, pre-filled and overwritable. */
   suggestedOrderNo: string;
 }) {
-  const [state, formAction] = useActionState<ActionState, FormData>(createOrder, {});
+  const [state, formAction] = useActionState<ActionState, FormData>(
+    createOrder,
+    {},
+  );
+
+  const [search, setSearch] = useState("");
+  const [clientId, setClientId] = useState<number | null>(preselectedClientId);
   const [picked, setPicked] = useState<number[]>([]);
+
+  const chosen = people.find((p) => p.id === clientId) ?? null;
+
+  /* Matching on phone as well as name, because a tailor remembers a number
+     he has dialled more reliably than a spelling. */
+  const matches = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (q === "") return [];
+    return people
+      .filter(
+        (p) =>
+          p.name.toLowerCase().includes(q) ||
+          p.phone.replace(/\D/g, "").includes(q.replace(/\D/g, "")),
+      )
+      .slice(0, 8);
+  }, [people, search]);
 
   const toggle = (id: number) =>
     setPicked((current) =>
       current.includes(id) ? current.filter((x) => x !== id) : [...current, id],
     );
 
-  const grouped = garments.reduce<Record<string, GarmentChoice[]>>((acc, g) => {
-    (acc[g.categoryLabel] ??= []).push(g);
-    return acc;
-  }, {});
+  /* The measurements this order actually needs: every group the ticked
+     garments draw on, minus the ones already on file for this client. For a
+     new client nothing is on file, so everything needed shows. */
+  const needed = useMemo(() => {
+    const ids = new Set<number>();
+    for (const garment of garments) {
+      if (!picked.includes(garment.id)) continue;
+      for (const groupId of garment.groupIds) ids.add(groupId);
+    }
+    const onFile = clientId ? (measured[clientId] ?? {}) : {};
+    return groups
+      .filter((g) => ids.has(g.id))
+      .map((g) => ({ ...g, takenOn: onFile[g.id] ?? null }));
+  }, [garments, groups, picked, clientId, measured]);
+
+  const toMeasure = needed.filter((g) => g.takenOn === null);
+
+  const grouped = garments.reduce<Record<string, GarmentChoice[]>>(
+    (acc, g) => {
+      (acc[g.categoryLabel] ??= []).push(g);
+      return acc;
+    },
+    {},
+  );
 
   return (
     <form action={formAction} className="space-y-4">
-      <input type="hidden" name="clientId" value={clientId} />
+      <input type="hidden" name="clientId" value={clientId ?? 0} />
 
       <FormError message={state.error} />
 
+      {/* ── 1. who ──────────────────────────────────────────────────────── */}
       <div className="card p-5">
-        {/* Pre-filled with the next number in the sequence, so the common case
-            is to leave it alone. Typing over it is for a shop that already
-            numbers its own jobs in a book and wants the app to match. */}
+        <h2 className="font-serif text-lg">1. Who is it for</h2>
+
+        {chosen ? (
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <div>
+              <div className="font-medium">{chosen.name}</div>
+              <div className="text-sm text-muted">
+                {chosen.phone}
+                {chosen.orderCount > 0
+                  ? ` · ${chosen.orderCount} order${chosen.orderCount === 1 ? "" : "s"} before`
+                  : " · first order"}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setClientId(null);
+                setSearch("");
+              }}
+              className="btn-secondary btn-sm"
+            >
+              Change
+            </button>
+          </div>
+        ) : (
+          <>
+            <label className="mt-3 block">
+              <span className="label">Name or phone number</span>
+              <input
+                className="field"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Start typing…"
+                autoComplete="off"
+              />
+            </label>
+
+            {matches.length > 0 ? (
+              <div className="mt-2 space-y-1">
+                {matches.map((person) => (
+                  <button
+                    key={person.id}
+                    type="button"
+                    onClick={() => setClientId(person.id)}
+                    className="flex w-full items-baseline justify-between rounded-md border border-line bg-white px-3 py-2 text-left text-sm transition hover:border-gold hover:bg-gold-soft"
+                  >
+                    <span className="font-medium">{person.name}</span>
+                    <span className="text-muted">{person.phone}</span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+
+            {/* No detour. A client who has never been here before is the
+                commonest thing that happens, and it should not mean leaving
+                this screen and finding the way back. */}
+            {search.trim() !== "" && matches.length === 0 ? (
+              <div className="mt-3 rounded-md border border-gold/30 bg-gold-soft p-3">
+                <p className="text-sm">
+                  Nobody by that name or number. Add them:
+                </p>
+                <div className="mt-2 grid gap-3 sm:grid-cols-2">
+                  <label className="block">
+                    <span className="label">Name</span>
+                    <input
+                      className="field"
+                      name="newClientName"
+                      defaultValue={search.trim()}
+                      autoComplete="off"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="label">Phone</span>
+                    <input
+                      className="field tabular-nums"
+                      name="newClientPhone"
+                      inputMode="tel"
+                      autoComplete="off"
+                    />
+                  </label>
+                </div>
+                <p className="mt-2 text-xs text-muted">
+                  Saved with the order. Address and the rest can wait.
+                </p>
+              </div>
+            ) : null}
+          </>
+        )}
+      </div>
+
+      {/* ── 2. what ─────────────────────────────────────────────────────── */}
+      <div className="card p-5">
+        <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="font-serif text-lg">2. What they want</h2>
+          <p className="text-sm text-muted">
+            {picked.length === 0
+              ? "Pick at least one."
+              : `${picked.length} selected`}
+          </p>
+        </div>
+
+        <div className="space-y-4">
+          {Object.entries(grouped).map(([label, list]) => (
+            <div key={label}>
+              <h3 className="mb-2 text-xs font-semibold tracking-wide text-muted uppercase">
+                {label}
+              </h3>
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {list.map((garment) => {
+                  const on = picked.includes(garment.id);
+                  const onFile = clientId ? (measured[clientId] ?? {}) : {};
+                  const ready =
+                    garment.groupIds.length > 0 &&
+                    garment.groupIds.every((id) => onFile[id]);
+                  return (
+                    <label
+                      key={garment.id}
+                      className={`flex cursor-pointer items-start gap-2 rounded-md border px-3 py-2 transition ${
+                        on
+                          ? "border-gold bg-gold-soft"
+                          : "border-line bg-white hover:border-gold/50"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        name="garmentTypeIds"
+                        value={garment.id}
+                        checked={on}
+                        onChange={() => toggle(garment.id)}
+                        className="mt-0.5"
+                      />
+                      <span>
+                        <span className="block text-sm font-medium">
+                          {garment.name}
+                        </span>
+                        <span className="block text-xs text-muted">
+                          {ready ? "Measurements on file" : "Needs measuring"}
+                        </span>
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── 3. measurements, only if something is missing ────────────────── */}
+      {toMeasure.length > 0 ? (
+        <div className="card p-5">
+          <h2 className="font-serif text-lg">3. Measurements</h2>
+          <p className="mt-1 text-sm text-muted">
+            {chosen
+              ? `${chosen.name} has not been measured for this yet.`
+              : "A new client, so these are needed once."}{" "}
+            Taken now, they serve every garment of this kind from here on.
+          </p>
+
+          {toMeasure.map((group) => (
+            <div key={group.id} className="mt-4">
+              <input type="hidden" name="measuredGroupIds" value={group.id} />
+              <h3 className="mb-2 text-xs font-semibold tracking-wide text-muted uppercase">
+                {group.name}
+              </h3>
+              <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-4">
+                {group.fields.map((field) => (
+                  <label key={field.id} className="block">
+                    <span className="mb-1 block text-xs text-ink-2">
+                      {field.label}
+                      {field.unit ? (
+                        <span className="text-muted"> ({field.unit})</span>
+                      ) : null}
+                    </span>
+                    {field.choiceList.length > 0 ? (
+                      <select className="field" name={`m_${field.id}`} defaultValue="">
+                        <option value="">—</option>
+                        {field.choiceList.map((choice) => (
+                          <option key={choice} value={choice}>
+                            {choice}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        className={`field ${field.fieldType === "number" ? "tabular-nums" : ""}`}
+                        name={`m_${field.id}`}
+                        type="text"
+                        inputMode={field.fieldType === "number" ? "decimal" : "text"}
+                        autoComplete="off"
+                      />
+                    )}
+                  </label>
+                ))}
+              </div>
+            </div>
+          ))}
+
+          <p className="mt-3 text-xs text-muted">
+            Write numbers however you normally do — 34, 34.5, 34½ and 34 1/2 all
+            work. Anything left blank can be filled in on the order afterwards.
+          </p>
+        </div>
+      ) : null}
+
+      {/* ── 4. the paperwork ────────────────────────────────────────────── */}
+      <div className="card p-5">
+        <h2 className="mb-3 font-serif text-lg">
+          {toMeasure.length > 0 ? "4" : "3"}. Dates and number
+        </h2>
+
         <label className="mb-4 block sm:max-w-[14rem]">
           <span className="label">Order number</span>
           <input
@@ -66,7 +348,7 @@ export function NewOrderForm({
           </span>
         </label>
 
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-3">
           <label className="block">
             <span className="label">Order date</span>
             <input className="field" type="date" name="orderDate" defaultValue={today} />
@@ -92,73 +374,12 @@ export function NewOrderForm({
         </label>
       </div>
 
-      <div className="card p-5">
-        <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="font-serif text-lg">Garments</h2>
-          <p className="text-sm text-muted">
-            {picked.length === 0
-              ? "Pick at least one."
-              : `${picked.length} selected. Saved measurements come across automatically.`}
-          </p>
-        </div>
-
-        <div className="space-y-4">
-          {Object.entries(grouped).map(([label, list]) => (
-            <div key={label}>
-              <h3 className="mb-2 text-xs font-semibold tracking-wide text-muted uppercase">
-                {label}
-              </h3>
-              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                {list.map((garment) => {
-                  const on = picked.includes(garment.id);
-                  return (
-                    <label
-                      key={garment.id}
-                      className={`flex cursor-pointer items-start gap-3 rounded-md border p-3 transition ${
-                        on ? "border-gold bg-gold-soft/50" : "border-line bg-white hover:bg-bone"
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        name="garmentTypeIds"
-                        value={garment.id}
-                        checked={on}
-                        onChange={() => toggle(garment.id)}
-                        className="mt-1 size-4 accent-[#a8842a]"
-                      />
-                      <span className="min-w-0">
-                        <span className="block font-medium">{garment.name}</span>
-                        <span
-                          className={`block text-xs ${
-                            garment.measuredOn ? "text-good" : "text-muted"
-                          }`}
-                        >
-                          {garment.measuredOn
-                            ? `Measured ${garment.measuredOn}`
-                            : "No measurements yet"}
-                        </span>
-                      </span>
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="flex gap-2">
+      <div className="flex flex-wrap items-center gap-3">
         <SubmitButton pendingLabel="Creating…">Create order</SubmitButton>
-        <Link href={`/clients/${clientId}`} className="btn-secondary">
-          Cancel
-        </Link>
+        <span className="text-sm text-muted">
+          Prices, fabric and the advance come next, on the order itself.
+        </span>
       </div>
-
-      <p className="text-xs text-muted">
-        Creating the order copies {clientName}&rsquo;s saved measurements onto the
-        cutting card. Anything missing can be filled in on the next screen, and
-        prices are set there too.
-      </p>
     </form>
   );
 }

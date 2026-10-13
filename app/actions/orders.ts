@@ -6,6 +6,7 @@ import { asc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import {
+  clients,
   garmentTypes,
   measurementSets,
   measurementValues,
@@ -20,7 +21,11 @@ import {
   type OrderStatus,
 } from "@/db/schema";
 import { nextOrderNo, orderNoTaken } from "@/lib/orders";
-import { getFieldsFor, getMergedValues } from "@/lib/measurements";
+import {
+  getFieldsFor,
+  getMergedValues,
+  getOwnMeasurementFields,
+} from "@/lib/measurements";
 import { parseMeasurement } from "@/lib/measure";
 import { parseRupeesToPaise } from "@/lib/money";
 import { today } from "@/lib/format";
@@ -79,7 +84,10 @@ function snapshotMeasurements(
 /* ── create ───────────────────────────────────────────────────────────── */
 
 const CreateOrder = z.object({
-  clientId: z.coerce.number().int().positive("Pick a client"),
+  /* Zero means "a new client, named below". An order for someone who has
+     never been here before is the commonest thing that happens at a counter,
+     and it should not require a detour through a different screen first. */
+  clientId: z.coerce.number().int().min(0),
   orderDate: z.string().min(1, "Order date is required"),
   trialDate: z.string().optional(),
   promisedDate: z.string().optional(),
@@ -115,8 +123,66 @@ export async function createOrder(
     return { error: "Pick at least one garment" };
   }
 
-  const { clientId, orderDate, trialDate, promisedDate, internalNotes } =
-    parsed.data;
+  const { orderDate, trialDate, promisedDate, internalNotes } = parsed.data;
+
+  /* ── who it is for ──────────────────────────────────────────────────────
+   *
+   * Either an existing client, or one created here and now. Previously the
+   * form sent him to Clients -> New client, which saved and landed him on
+   * the client's page, from where he had to find his way back to New order.
+   * Four screens for what is one sheet of paper. */
+  let clientId = parsed.data.clientId;
+  if (!clientId) {
+    const newName = String(formData.get("newClientName") ?? "").trim();
+    const newPhone = String(formData.get("newClientPhone") ?? "").trim();
+    if (!newName) return { error: "Type the client's name" };
+    if (!newPhone) return { error: `Add a phone number for ${newName}` };
+
+    const created = db
+      .insert(clients)
+      .values({ name: newName, phone: newPhone })
+      .returning({ id: clients.id })
+      .get();
+    clientId = created.id;
+  }
+
+  /* ── measurements taken at the counter ──────────────────────────────────
+   *
+   * Saved BEFORE the order is built, because building it snapshots whatever
+   * the client measures today. Written per group, exactly as the measuring
+   * screen does, so numbers taken here serve every other garment too - take
+   * an upper body for a shirt now and the kurta next month is already
+   * measured. */
+  const measuredGroupIds = formData
+    .getAll("measuredGroupIds")
+    .map((v) => Number(v))
+    .filter((n) => Number.isFinite(n) && n > 0);
+
+  for (const groupId of measuredGroupIds) {
+    const fields = getOwnMeasurementFields(groupId);
+    const entered = fields
+      .map((field) => {
+        const raw = formData.get(`m_${field.id}`);
+        if (raw === null) return null;
+        const { text, num } = parseMeasurement(String(raw));
+        if (text === "") return null;
+        return { fieldId: field.id, valueText: text, valueNum: num };
+      })
+      .filter((row): row is NonNullable<typeof row> => row !== null);
+
+    if (entered.length === 0) continue;
+
+    db.transaction((tx) => {
+      const set = tx
+        .insert(measurementSets)
+        .values({ clientId, garmentTypeId: groupId, takenOn: orderDate })
+        .returning({ id: measurementSets.id })
+        .get();
+      tx.insert(measurementValues)
+        .values(entered.map((row) => ({ ...row, setId: set.id })))
+        .run();
+    });
+  }
 
   /* Left blank - or cleared out - falls back to the running sequence. The
      fallback is computed here rather than trusted from the form, so a stale
