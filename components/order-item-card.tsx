@@ -23,8 +23,25 @@ export type ItemForCard = {
   fabricRatePaise: number;
   lineTotalPaise: number;
   tailorId: number | null;
-  measurements: OrderItemMeasurement[];
+  /* The snapshot, plus the live field definition for drawing the input. See
+     the note in lib/orders.ts: the value is history, the dropdown is not. */
+  measurements: (OrderItemMeasurement & {
+    fieldType: string | null;
+    choices: string | null;
+    groupName: string | null;
+  })[];
 };
+
+/** Choices are stored as a JSON array; a hand-edited one degrades to a text box. */
+function parseChoiceList(raw: string | null): string[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.map(String) : [];
+  } catch {
+    return [];
+  }
+}
 
 export function OrderItemCard({
   orderId,
@@ -37,6 +54,9 @@ export function OrderItemCard({
   index: number;
   tailors: { id: number; name: string }[];
 }) {
+  const numbers = item.measurements.filter((m) => m.groupName !== "Style");
+  const styleFields = item.measurements.filter((m) => m.groupName === "Style");
+
   const [state, formAction] = useActionState<ActionState, FormData>(
     updateOrderItem,
     {},
@@ -81,30 +101,77 @@ export function OrderItemCard({
         <input type="hidden" name="itemId" value={item.id} />
 
         {item.measurements.length > 0 ? (
-          <div>
-            <h4 className="mb-2 text-xs font-semibold tracking-wide text-muted uppercase">
-              Cutting card
-            </h4>
-            <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-4">
-              {item.measurements.map((m) => (
-                <label key={m.id} className="block">
-                  <span className="mb-1 block text-xs text-ink-2">
-                    {m.fieldLabel}
-                    {m.unit ? <span className="text-muted"> ({m.unit})</span> : null}
-                  </span>
-                  <input
-                    className={`field tabular-nums ${
-                      m.valueText.trim() === "" ? "border-danger/40 bg-danger-soft/40" : ""
-                    }`}
-                    name={`m_${m.id}`}
-                    type="text"
-                    inputMode="decimal"
-                    autoComplete="off"
-                    defaultValue={m.valueText}
-                  />
-                </label>
-              ))}
+          <div className="space-y-4">
+            <div>
+              <h4 className="mb-2 text-xs font-semibold tracking-wide text-muted uppercase">
+                Cutting card
+              </h4>
+              <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-4">
+                {numbers.map((m) => (
+                  <label key={m.id} className="block">
+                    <span className="mb-1 block text-xs text-ink-2">
+                      {m.fieldLabel}
+                      {m.unit ? <span className="text-muted"> ({m.unit})</span> : null}
+                    </span>
+                    <input
+                      className={`field tabular-nums ${
+                        m.valueText.trim() === "" ? "border-danger/40 bg-danger-soft/40" : ""
+                      }`}
+                      name={`m_${m.id}`}
+                      type="text"
+                      inputMode="decimal"
+                      autoComplete="off"
+                      defaultValue={m.valueText}
+                    />
+                  </label>
+                ))}
+              </div>
             </div>
+
+            {/* Style sits apart from the numbers because it is a different
+                kind of thing: not the client's body but what he wants made
+                this time. Blank is normal here, so no red boxes. */}
+            {styleFields.length > 0 ? (
+              <div>
+                <h4 className="mb-2 text-xs font-semibold tracking-wide text-muted uppercase">
+                  Pockets, cuffs and the rest
+                </h4>
+                <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-4">
+                  {styleFields.map((m) => {
+                    const options = parseChoiceList(m.choices);
+                    return (
+                      <label key={m.id} className="block">
+                        <span className="mb-1 block text-xs text-ink-2">
+                          {m.fieldLabel}
+                        </span>
+                        {options.length > 0 ? (
+                          <select
+                            className="field"
+                            name={`m_${m.id}`}
+                            defaultValue={m.valueText}
+                          >
+                            <option value="">—</option>
+                            {options.map((option) => (
+                              <option key={option} value={option}>
+                                {option}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <input
+                            className="field"
+                            name={`m_${m.id}`}
+                            type="text"
+                            autoComplete="off"
+                            defaultValue={m.valueText}
+                          />
+                        )}
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
           </div>
         ) : (
           <p className="text-sm text-muted">

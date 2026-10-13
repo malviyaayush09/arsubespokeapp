@@ -15,6 +15,7 @@ const ClientInput = z.object({
   altPhone: z.string().trim().optional(),
   address: z.string().trim().optional(),
   email: z.string().trim().optional(),
+  gstNo: z.string().trim().optional(),
   notes: z.string().trim().optional(),
 });
 
@@ -25,6 +26,7 @@ function read(formData: FormData) {
     altPhone: formData.get("altPhone") ?? "",
     address: formData.get("address") ?? "",
     email: formData.get("email") ?? "",
+    gstNo: formData.get("gstNo") ?? "",
     notes: formData.get("notes") ?? "",
   });
 }
@@ -48,6 +50,7 @@ export async function createClient(
       altPhone: blankToNull(parsed.data.altPhone),
       address: blankToNull(parsed.data.address),
       email: blankToNull(parsed.data.email),
+      gstNo: blankToNull(parsed.data.gstNo),
       notes: blankToNull(parsed.data.notes),
     })
     .returning({ id: clients.id })
@@ -76,6 +79,7 @@ export async function updateClient(
       altPhone: blankToNull(parsed.data.altPhone),
       address: blankToNull(parsed.data.address),
       email: blankToNull(parsed.data.email),
+      gstNo: blankToNull(parsed.data.gstNo),
       notes: blankToNull(parsed.data.notes),
       updatedAt: new Date(),
     })

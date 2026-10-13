@@ -106,6 +106,9 @@ export const clients = sqliteTable(
     altPhone: text("alt_phone"),
     address: text("address"),
     email: text("email"),
+    /* Blank for almost everyone. The handful of clients who want a GST bill
+       ask for it by name, and his own sheet has a row for it. */
+    gstNo: text("gst_no"),
     notes: text("notes"),
     createdAt: integer("created_at", { mode: "timestamp_ms" })
       .notNull()
@@ -306,8 +309,15 @@ export const orders = sqliteTable(
       .notNull()
       .references(() => clients.id, { onDelete: "restrict" }),
     orderDate: text("order_date").notNull(),
+    /** A second appointment, and its own row on his sheet. Not the delivery. */
+    trialDate: text("trial_date"),
     promisedDate: text("promised_date"),
     status: text("status", { enum: ORDER_STATUSES }).notNull().default("placed"),
+    /* ONE cloth figure for the whole job, which is how his bill reads:
+       stitching 3,600 + Fabric 9,400 = 13,000. order_items still carries a
+       per-garment fabric rate because orders already written used it, but
+       nothing asks for it any more. */
+    fabricPaise: integer("fabric_paise").notNull().default(0),
     discountPaise: integer("discount_paise").notNull().default(0),
     /** Shop-only. Never rendered on the client copy. */
     internalNotes: text("internal_notes"),

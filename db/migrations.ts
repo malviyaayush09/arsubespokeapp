@@ -147,4 +147,35 @@ export const MIGRATIONS: Migration[] = [
       }
     },
   },
+  {
+    id: "0005_his_bill",
+    description: "GST number, trial date, and fabric as one amount per order",
+    run: (db) => {
+      /* Three things his own order sheet has and this app did not.
+       *
+       * FABRIC IS ONE AMOUNT. His bill reads stitching 3,600 plus Fabric
+       * 9,400 equals 13,000 - a single cloth figure for the whole job, not a
+       * rate per garment. The per-garment fabric column stays, because orders
+       * already written used it and rule 2 of migrations is additive, but
+       * nothing will ask him for it any more.
+       *
+       * TRIAL DATE is its own row on his sheet, separate from Delivery. A
+       * trial is a second appointment, and an app that cannot record it sends
+       * him back to paper for the one thing he must not forget.
+       *
+       * GST NUMBER sits under the client's contact details on his sheet,
+       * blank for most people and needed for the ones who ask for a bill. */
+      if (!hasColumn(db, "clients", "gst_no")) {
+        db.exec("ALTER TABLE clients ADD COLUMN gst_no TEXT");
+      }
+      if (!hasColumn(db, "orders", "trial_date")) {
+        db.exec("ALTER TABLE orders ADD COLUMN trial_date TEXT");
+      }
+      if (!hasColumn(db, "orders", "fabric_paise")) {
+        db.exec(
+          "ALTER TABLE orders ADD COLUMN fabric_paise INTEGER NOT NULL DEFAULT 0",
+        );
+      }
+    },
+  },
 ];

@@ -41,10 +41,28 @@ function Letterhead({ shop, copyLabel }: { shop: Shop; copyLabel: string }) {
         <div className="mb-1 inline-block border border-black px-2 py-0.5 text-[8pt] font-semibold tracking-wider uppercase">
           {copyLabel}
         </div>
+        {/* Both numbers and the address he already prints: the landline is
+            what clients ring, the mobile is what he answers. */}
+        {shop.storePhone ? (
+          <div className="tabular-nums">{shop.storePhone}</div>
+        ) : null}
         {shop.phone ? <div className="tabular-nums">{shop.phone}</div> : null}
+        {shop.email ? <div>{shop.email}</div> : null}
         {shop.instagram ? <div>{shop.instagram}</div> : null}
       </div>
     </header>
+  );
+}
+
+/* The terms along the foot of his own sheet - collection times, the thirty-day
+   limit, opening hours. They exist because clients ask, and because a garment
+   left for a year is a garment he is still storing. */
+function Terms({ shop }: { shop: Shop }) {
+  if (!shop.terms) return null;
+  return (
+    <div className="mt-6 border-t border-black pt-2 text-[7.5pt] leading-snug whitespace-pre-line text-neutral-700">
+      {shop.terms}
+    </div>
   );
 }
 
@@ -69,6 +87,12 @@ function OrderMeta({
       <Line label="Client" value={client.name} strong />
       <Line label="Order date" value={formatDate(order.orderDate)} />
       {showPhone ? <Line label="Phone" value={client.phone} /> : null}
+      {showPhone && client.gstNo ? (
+        <Line label="GST No" value={client.gstNo} />
+      ) : null}
+      {order.trialDate ? (
+        <Line label="Trial" value={formatDate(order.trialDate)} />
+      ) : null}
       <Line
         label="Delivery"
         value={order.promisedDate ? formatDate(order.promisedDate) : "—"}
@@ -132,7 +156,9 @@ export function TailorSheet({ data, shop }: { data: OrderFull; shop: Shop }) {
                two-digit number and a fraction at 13pt, which is legible at
                arm's length on a cutting table. */
             <div className="mt-2 grid grid-cols-4 gap-x-4 gap-y-1.5">
-              {item.measurements.map((m) => (
+              {item.measurements
+                .filter((m) => m.groupName !== "Style")
+                .map((m) => (
                 <div key={m.id} className="flex items-baseline justify-between border-b border-neutral-300 pb-0.5">
                   <span className="text-[8.5pt] text-neutral-700">{m.fieldLabel}</span>
                   <span className="ml-2 text-[13pt] font-semibold tabular-nums">
@@ -148,7 +174,27 @@ export function TailorSheet({ data, shop }: { data: OrderFull; shop: Shop }) {
                     ) : null}
                   </span>
                 </div>
-              ))}
+                ))}
+            </div>
+          ) : null}
+
+          {/* Pockets, cuffs and the rest - printed in a band across the
+              cutting copy, because this is the half of the instruction that
+              is not a number and the person at the bench needs both. */}
+          {item.measurements.some(
+            (m) => m.groupName === "Style" && m.valueText.trim() !== "",
+          ) ? (
+            <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 border-t border-neutral-300 pt-1.5 text-[10pt]">
+              {item.measurements
+                .filter((m) => m.groupName === "Style" && m.valueText.trim() !== "")
+                .map((m) => (
+                  <span key={m.id}>
+                    <span className="text-[8.5pt] text-neutral-700">
+                      {m.fieldLabel}:{" "}
+                    </span>
+                    <span className="font-semibold">{m.valueText}</span>
+                  </span>
+                ))}
             </div>
           ) : null}
 
@@ -228,16 +274,22 @@ export function ClientSheet({ data, shop }: { data: OrderFull; shop: Shop }) {
       </table>
 
       <div className="keep-together mt-3 ml-auto w-72 text-[10pt]">
-        {/* Charges are already itemised as rows in the table above, so the
-            subtotal here includes them. Listing them again as a separate
-            "Extras" line made a client's receipt read as if the express fee
-            had been charged twice, even though the total was right. */}
-        <Total label="Subtotal" paise={totals.subtotalPaise + totals.chargesPaise} />
+        {/* The labels are the ones already on his printed sheet - Total,
+            Fabric, Grand Total, Advance, Balance - so a figure here and a
+            figure on his paper are obviously the same figure.
+
+            Charges are itemised as rows in the table above, so Total includes
+            them. Listing them again separately made a receipt read as if the
+            express fee had been charged twice, even though the sum was right. */}
+        <Total label="Total" paise={totals.stitchingPaise + totals.chargesPaise} />
+        {totals.fabricPaise > 0 ? (
+          <Total label="Fabric" paise={totals.fabricPaise} />
+        ) : null}
         {totals.discountPaise > 0 ? (
           <Total label="Discount" paise={-totals.discountPaise} />
         ) : null}
         <div className="my-1 border-t-2 border-black" />
-        <Total label="Total" paise={totals.totalPaise} strong />
+        <Total label="Grand Total" paise={totals.totalPaise} strong />
         {payments.map((payment) => (
           <Total
             key={payment.id}
@@ -255,6 +307,7 @@ export function ClientSheet({ data, shop }: { data: OrderFull; shop: Shop }) {
       </div>
 
       <SignOff note={shop.billFooter} />
+      <Terms shop={shop} />
     </section>
   );
 }
@@ -358,7 +411,10 @@ export function ShopSheet({ data, shop }: { data: OrderFull; shop: Shop }) {
         </div>
 
         <div className="w-64 text-[10pt]">
-          <Total label="Subtotal" paise={totals.subtotalPaise} />
+          <Total label="Total" paise={totals.stitchingPaise} />
+          {totals.fabricPaise > 0 ? (
+            <Total label="Fabric" paise={totals.fabricPaise} />
+          ) : null}
           {totals.chargesPaise > 0 ? (
             <Total label="Extras" paise={totals.chargesPaise} />
           ) : null}
@@ -366,8 +422,8 @@ export function ShopSheet({ data, shop }: { data: OrderFull; shop: Shop }) {
             <Total label="Discount" paise={-totals.discountPaise} />
           ) : null}
           <div className="my-1 border-t-2 border-black" />
-          <Total label="Total" paise={totals.totalPaise} strong />
-          <Total label="Paid" paise={-totals.paidPaise} />
+          <Total label="Grand Total" paise={totals.totalPaise} strong />
+          <Total label="Advance" paise={-totals.paidPaise} />
           <div className="my-1 border-t border-black" />
           <Total
             label={totals.balancePaise < 0 ? "Refund due" : "Balance"}
@@ -376,6 +432,7 @@ export function ShopSheet({ data, shop }: { data: OrderFull; shop: Shop }) {
           />
         </div>
       </div>
+      <Terms shop={shop} />
     </section>
   );
 }

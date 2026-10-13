@@ -4,6 +4,7 @@ import {
   clients,
   garmentTypes,
   orderCharges,
+  measurementFields,
   orderItemMeasurements,
   orderItems,
   orderStatusEvents,
@@ -33,11 +34,25 @@ export function lineTotal(item: {
   return (item.stitchingRatePaise + item.fabricRatePaise) * item.quantity;
 }
 
+/* The names are the ones printed on his own bill, so that a figure on screen
+   and a figure on paper are obviously the same figure:
+
+     Total        the stitching lines added up
+     Fabric       one cloth amount for the whole job
+     Grand Total  what the client owes
+     Advance      what they have paid
+     Balance      what is left
+*/
 export type Totals = {
-  subtotalPaise: number;
+  /** His "Total": the stitching lines. */
+  stitchingPaise: number;
+  /** His "Fabric": one amount for the job. */
+  fabricPaise: number;
   chargesPaise: number;
   discountPaise: number;
+  /** His "Grand Total". */
   totalPaise: number;
+  /** His "Advance". */
   paidPaise: number;
   balancePaise: number;
 };
@@ -45,24 +60,27 @@ export type Totals = {
 export function computeTotals(input: {
   items: { stitchingRatePaise: number; fabricRatePaise: number; quantity: number }[];
   charges: { amountPaise: number }[];
+  /** One cloth amount for the whole job, as on his sheet. */
+  fabricPaise?: number;
   discountPaise: number;
   payments: { amountPaise: number }[];
 }): Totals {
-  const subtotalPaise = input.items.reduce((sum, i) => sum + lineTotal(i), 0);
+  const stitchingPaise = input.items.reduce((sum, i) => sum + lineTotal(i), 0);
+  const fabricPaise = Math.max(input.fabricPaise ?? 0, 0);
   const chargesPaise = input.charges.reduce((sum, c) => sum + c.amountPaise, 0);
+
+  const beforeDiscount = stitchingPaise + fabricPaise + chargesPaise;
 
   /* A discount can be keyed larger than the bill by a slip of the hand. Clamp
      it rather than printing a negative total and refunding by accident. */
-  const discountPaise = Math.min(
-    Math.max(input.discountPaise, 0),
-    subtotalPaise + chargesPaise,
-  );
+  const discountPaise = Math.min(Math.max(input.discountPaise, 0), beforeDiscount);
 
-  const totalPaise = subtotalPaise + chargesPaise - discountPaise;
+  const totalPaise = beforeDiscount - discountPaise;
   const paidPaise = input.payments.reduce((sum, p) => sum + p.amountPaise, 0);
 
   return {
-    subtotalPaise,
+    stitchingPaise,
+    fabricPaise,
     chargesPaise,
     discountPaise,
     totalPaise,
@@ -139,12 +157,38 @@ export function getOrderFull(orderId: number) {
     .orderBy(asc(orderItems.sortOrder), asc(orderItems.id))
     .all();
 
+  /* The snapshot owns the VALUE, the label and the unit - that is rule 1, and
+     it is why a past order still shows what was actually cut.
+
+     It does not own how to DRAW the input. Whether something is a dropdown,
+     and which options that dropdown offers, is presentation and belongs to
+     the field as it stands today: if Arsu adds a third pocket option this
+     year, the order he is editing right now should offer it. So the live
+     definition is joined on for rendering only, and a field since deleted
+     simply falls back to a text box, its recorded value untouched. */
   const itemsWithMeasurements = items.map((item) => ({
     ...item,
     lineTotalPaise: lineTotal(item),
     measurements: db
-      .select()
+      .select({
+        id: orderItemMeasurements.id,
+        orderItemId: orderItemMeasurements.orderItemId,
+        fieldId: orderItemMeasurements.fieldId,
+        fieldCode: orderItemMeasurements.fieldCode,
+        fieldLabel: orderItemMeasurements.fieldLabel,
+        unit: orderItemMeasurements.unit,
+        valueText: orderItemMeasurements.valueText,
+        valueNum: orderItemMeasurements.valueNum,
+        sortOrder: orderItemMeasurements.sortOrder,
+        fieldType: measurementFields.fieldType,
+        choices: measurementFields.choices,
+        groupName: measurementFields.groupName,
+      })
       .from(orderItemMeasurements)
+      .leftJoin(
+        measurementFields,
+        eq(measurementFields.id, orderItemMeasurements.fieldId),
+      )
       .where(eq(orderItemMeasurements.orderItemId, item.id))
       .orderBy(asc(orderItemMeasurements.sortOrder), asc(orderItemMeasurements.id))
       .all(),
@@ -174,6 +218,7 @@ export function getOrderFull(orderId: number) {
   const totals = computeTotals({
     items,
     charges,
+    fabricPaise: order.fabricPaise,
     discountPaise: order.discountPaise,
     payments: paymentRows,
   });
@@ -215,6 +260,7 @@ export function listOrders(options?: {
       orderDate: orders.orderDate,
       promisedDate: orders.promisedDate,
       status: orders.status,
+      fabricPaise: orders.fabricPaise,
       discountPaise: orders.discountPaise,
       clientId: clients.id,
       clientName: clients.name,
@@ -247,7 +293,10 @@ export function listOrders(options?: {
     .all();
 
   return rows.map((row) => {
-    const gross = row.itemsSubtotal + row.chargesTotal;
+    /* Must match computeTotals() exactly, including the order-level fabric
+       amount. A list that quietly disagrees with the bill it links to is how
+       a shop stops trusting the app. */
+    const gross = row.itemsSubtotal + row.fabricPaise + row.chargesTotal;
     const discountPaise = Math.min(Math.max(row.discountPaise, 0), gross);
     const totalPaise = gross - discountPaise;
     return {

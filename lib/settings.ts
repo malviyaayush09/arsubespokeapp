@@ -6,8 +6,13 @@ export type Shop = {
   tagline: string;
   address: string;
   phone: string;
+  /** The landline on his sheet, printed beside the mobile. */
+  storePhone: string;
+  email: string;
   instagram: string;
   billFooter: string;
+  /** Collection and opening-hours terms, as printed along the foot of his own sheet. */
+  terms: string;
 };
 
 const FALLBACK: Shop = {
@@ -15,8 +20,11 @@ const FALLBACK: Shop = {
   tagline: "Ethnic & Western Bespoke Studio",
   address: "",
   phone: "",
+  storePhone: "",
+  email: "",
   instagram: "",
   billFooter: "",
+  terms: "",
 };
 
 export function getSettingsMap(): Record<string, string> {
@@ -33,8 +41,11 @@ export function getShop(): Shop {
     tagline: map.shop_tagline ?? FALLBACK.tagline,
     address: map.shop_address ?? FALLBACK.address,
     phone: map.shop_phone ?? FALLBACK.phone,
+    storePhone: map.shop_store_phone ?? FALLBACK.storePhone,
+    email: map.shop_email ?? FALLBACK.email,
     instagram: map.shop_instagram ?? FALLBACK.instagram,
     billFooter: map.bill_footer ?? FALLBACK.billFooter,
+    terms: map.shop_terms ?? FALLBACK.terms,
   };
 }
 

@@ -5,7 +5,7 @@ import { db } from "@/db";
 import { clients, garmentTypes } from "@/db/schema";
 import {
   getLatestSet,
-  getOwnFieldsFor,
+  getOwnMeasurementFields,
   listMeasurementTargets,
   parseChoices,
 } from "@/lib/measurements";
@@ -96,7 +96,7 @@ export default async function NewMeasurementPage({
     .get();
   if (!garment) notFound();
 
-  const fields = getOwnFieldsFor(typeId).map((field) => ({
+  const fields = getOwnMeasurementFields(typeId).map((field) => ({
     ...field,
     choiceList: parseChoices(field),
   }));

@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { clients } from "@/db/schema";
 import {
-  getOwnFieldsFor,
+  getOwnMeasurementFields,
   getSetWithValues,
   listSetsForClient,
   parseChoices,
@@ -31,7 +31,7 @@ export default async function MeasurementSetPage({
   const record = getSetWithValues(Number(setId));
   if (!client || !record || record.set.clientId !== clientId) notFound();
 
-  const fields = getOwnFieldsFor(record.set.garmentTypeId).map((field) => ({
+  const fields = getOwnMeasurementFields(record.set.garmentTypeId).map((field) => ({
     ...field,
     choiceList: parseChoices(field),
   }));

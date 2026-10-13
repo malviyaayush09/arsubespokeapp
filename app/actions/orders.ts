@@ -81,6 +81,7 @@ function snapshotMeasurements(
 const CreateOrder = z.object({
   clientId: z.coerce.number().int().positive("Pick a client"),
   orderDate: z.string().min(1, "Order date is required"),
+  trialDate: z.string().optional(),
   promisedDate: z.string().optional(),
   internalNotes: z.string().trim().optional(),
   /* Blank means "number it for me". A shop that already writes its own
@@ -96,6 +97,7 @@ export async function createOrder(
   const parsed = CreateOrder.safeParse({
     clientId: formData.get("clientId"),
     orderDate: formData.get("orderDate") || today(),
+    trialDate: formData.get("trialDate") ?? "",
     promisedDate: formData.get("promisedDate") ?? "",
     internalNotes: formData.get("internalNotes") ?? "",
     orderNo: formData.get("orderNo") ?? "",
@@ -113,7 +115,8 @@ export async function createOrder(
     return { error: "Pick at least one garment" };
   }
 
-  const { clientId, orderDate, promisedDate, internalNotes } = parsed.data;
+  const { clientId, orderDate, trialDate, promisedDate, internalNotes } =
+    parsed.data;
 
   /* Left blank - or cleared out - falls back to the running sequence. The
      fallback is computed here rather than trusted from the form, so a stale
@@ -136,6 +139,7 @@ export async function createOrder(
         orderNo,
         clientId,
         orderDate,
+        trialDate: trialDate && trialDate !== "" ? trialDate : null,
         promisedDate: promisedDate && promisedDate !== "" ? promisedDate : null,
         internalNotes: internalNotes && internalNotes !== "" ? internalNotes : null,
         status: "placed",
@@ -342,6 +346,7 @@ export async function updateOrderMeta(
   if (!Number.isFinite(orderId)) return { error: "Unknown order" };
 
   const orderDate = String(formData.get("orderDate") ?? "").trim();
+  const trialDate = String(formData.get("trialDate") ?? "").trim();
   const promisedDate = String(formData.get("promisedDate") ?? "").trim();
   const internalNotes = String(formData.get("internalNotes") ?? "").trim();
   const orderNo = String(formData.get("orderNo") ?? "").trim();
@@ -361,6 +366,7 @@ export async function updateOrderMeta(
     .set({
       orderNo,
       orderDate,
+      trialDate: trialDate || null,
       promisedDate: promisedDate || null,
       internalNotes: internalNotes || null,
       updatedAt: new Date(),
@@ -553,6 +559,31 @@ export async function saveItemMeasurementsToClient(
 }
 
 /* ── billing ──────────────────────────────────────────────────────────── */
+
+/**
+ * One cloth amount for the whole job, as on his sheet: stitching 3,600 plus
+ * Fabric 9,400 equals 13,000. The per-garment fabric rate still exists for
+ * orders already written, but nothing asks for it.
+ */
+export async function updateFabric(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const orderId = Number(formData.get("orderId"));
+  if (!Number.isFinite(orderId)) return { error: "Unknown order" };
+
+  const raw = String(formData.get("fabric") ?? "").trim();
+  const paise = raw === "" ? 0 : parseRupeesToPaise(raw);
+  if (paise === null) return { error: "Fabric must be an amount, like 9400" };
+
+  db.update(orders)
+    .set({ fabricPaise: Math.max(0, paise), updatedAt: new Date() })
+    .where(eq(orders.id, orderId))
+    .run();
+
+  touch(orderId);
+  return ok;
+}
 
 export async function updateDiscount(
   _prev: ActionState,

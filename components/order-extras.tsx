@@ -54,12 +54,14 @@ export function OrderMetaForm({
   orderId,
   orderNo,
   orderDate,
+  trialDate,
   promisedDate,
   internalNotes,
 }: {
   orderId: number;
   orderNo: string;
   orderDate: string;
+  trialDate: string | null;
   promisedDate: string | null;
   internalNotes: string | null;
 }) {
@@ -99,8 +101,20 @@ export function OrderMetaForm({
               defaultValue={orderDate}
             />
           </label>
+          {/* A trial is its own appointment and its own row on his sheet.
+              Leaving it off sent him back to paper for the one date he must
+              not forget. */}
           <label className="block">
-            <span className="label">Promised delivery</span>
+            <span className="label">Trial date</span>
+            <input
+              className="field"
+              type="date"
+              name="trialDate"
+              defaultValue={trialDate ?? ""}
+            />
+          </label>
+          <label className="block">
+            <span className="label">Delivery date</span>
             <input
               className="field"
               type="date"

@@ -9,6 +9,22 @@ import {
   type MeasurementField,
 } from "@/db/schema";
 
+/**
+ * Style is not measurement.
+ *
+ * Chest is a fact about the client: 40 inches, for every shirt he ever
+ * orders. "One pocket" is a decision about one garment on one day. So fields
+ * marked Style are asked on the ORDER, where they are chosen per job, printed
+ * on the cutting copy and carried forward by Repeat order - and they are kept
+ * out of the measuring form, where they would be stored against the person
+ * and silently reused for the next job.
+ */
+export const STYLE_GROUP = "Style";
+
+export function isStyleField(field: MeasurementField): boolean {
+  return field.groupName === STYLE_GROUP;
+}
+
 /** The fields a garment owns outright, ignoring anything it inherits. */
 export function getOwnFieldsFor(garmentTypeId: number): MeasurementField[] {
   return db
@@ -17,6 +33,13 @@ export function getOwnFieldsFor(garmentTypeId: number): MeasurementField[] {
     .where(eq(measurementFields.garmentTypeId, garmentTypeId))
     .orderBy(asc(measurementFields.sortOrder), asc(measurementFields.id))
     .all();
+}
+
+/** What a measuring session asks for: own fields, minus the style ones. */
+export function getOwnMeasurementFields(
+  garmentTypeId: number,
+): MeasurementField[] {
+  return getOwnFieldsFor(garmentTypeId).filter((f) => !isStyleField(f));
 }
 
 /** The groups a garment draws from, in the order they get measured. */
@@ -194,7 +217,9 @@ export function listMeasurementTargets(): MeasurementTarget[] {
   const targets: MeasurementTarget[] = [];
 
   for (const row of all) {
-    const own = getOwnFieldsFor(row.id).length;
+    /* Style fields do not make something worth measuring - they are asked on
+       the order, not at the measuring table. */
+    const own = getOwnMeasurementFields(row.id).length;
 
     if (row.isTemplate) {
       targets.push({
@@ -273,7 +298,9 @@ export function lastMeasuredOn(
   garmentTypeId: number,
 ): string | null {
   const sources = getGroupsFor(garmentTypeId).map((g) => g.id);
-  if (getOwnFieldsFor(garmentTypeId).length > 0) sources.push(garmentTypeId);
+  if (getOwnMeasurementFields(garmentTypeId).length > 0) {
+    sources.push(garmentTypeId);
+  }
   if (sources.length === 0) return null;
 
   let oldest: string | null = null;

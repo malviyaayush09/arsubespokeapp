@@ -72,7 +72,11 @@ export function NewOrderForm({
             <input className="field" type="date" name="orderDate" defaultValue={today} />
           </label>
           <label className="block">
-            <span className="label">Promised delivery</span>
+            <span className="label">Trial date</span>
+            <input className="field" type="date" name="trialDate" />
+          </label>
+          <label className="block">
+            <span className="label">Delivery date</span>
             <input className="field" type="date" name="promisedDate" />
           </label>
         </div>

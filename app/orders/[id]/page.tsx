@@ -146,6 +146,7 @@ export default async function OrderPage({
             orderId={order.id}
             orderNo={order.orderNo}
             orderDate={order.orderDate}
+            trialDate={order.trialDate}
             promisedDate={order.promisedDate}
             internalNotes={order.internalNotes}
           />

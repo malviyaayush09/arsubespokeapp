@@ -43,6 +43,9 @@ export function ClientForm({ client }: { client?: Client }) {
           defaultValue={client?.altPhone}
         />
         <Field label="Email" name="email" type="email" defaultValue={client?.email} />
+        {/* Blank for almost everyone. The few who want a GST bill ask for it
+            by name, and his own sheet has a row for it. */}
+        <Field label="GST No" name="gstNo" defaultValue={client?.gstNo} />
       </div>
 
       <TextArea label="Address" name="address" defaultValue={client?.address} rows={3} />

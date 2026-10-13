@@ -13,6 +13,7 @@ import {
   removeCharge,
   removePayment,
   updateDiscount,
+  updateFabric,
   type ActionState,
 } from "@/app/actions/orders";
 import type { Totals } from "@/lib/orders";
@@ -36,6 +37,10 @@ export function OrderBilling({
 }) {
   const [discountState, discountAction] = useActionState<ActionState, FormData>(
     updateDiscount,
+    {},
+  );
+  const [fabricState, fabricAction] = useActionState<ActionState, FormData>(
+    updateFabric,
     {},
   );
   const [chargeState, chargeAction] = useActionState<ActionState, FormData>(
@@ -76,10 +81,20 @@ export function OrderBilling({
             </tr>
           ))}
 
+          {/* "Total" then "Fabric" then "Grand Total", which is the order and
+              the wording on his own printed sheet. Calling the stitching sum
+              "Subtotal" was my word, not his. */}
           <tr className="border-t border-line">
-            <td className="py-1.5 font-medium">Subtotal</td>
+            <td className="py-1.5 font-medium">Total</td>
             <td className="py-1.5 text-right font-medium">
-              <Money paise={totals.subtotalPaise} />
+              <Money paise={totals.stitchingPaise} />
+            </td>
+          </tr>
+
+          <tr>
+            <td className="py-1.5 text-ink-2">Fabric</td>
+            <td className="py-1.5 text-right">
+              <Money paise={totals.fabricPaise} />
             </td>
           </tr>
 
@@ -114,7 +129,7 @@ export function OrderBilling({
           ) : null}
 
           <tr className="border-t-2 border-ink">
-            <td className="py-2 font-serif text-lg">Total</td>
+            <td className="py-2 font-serif text-lg">Grand Total</td>
             <td className="py-2 text-right font-serif text-lg">
               <Money paise={totals.totalPaise} />
             </td>
@@ -123,7 +138,7 @@ export function OrderBilling({
           {payments.map((payment) => (
             <tr key={payment.id}>
               <td className="py-1.5 text-ink-2">
-                Paid {formatDate(payment.paidOn)} · {PAYMENT_METHOD_LABELS[payment.method]}
+                Advance {formatDate(payment.paidOn)} · {PAYMENT_METHOD_LABELS[payment.method]}
                 {payment.note ? ` · ${payment.note}` : ""}
                 <form action={removePaymentAction} className="ml-2 inline">
                   <input type="hidden" name="orderId" value={orderId} />
@@ -158,6 +173,28 @@ export function OrderBilling({
       </table>
 
       <div className="mt-5 space-y-4 border-t border-line pt-4">
+        {/* ONE cloth amount for the whole job, which is how his bill reads.
+            Not a rate per garment - that was my design, and it made him do
+            arithmetic he does not do on paper. */}
+        <div>
+          <FormError message={fabricState.error} />
+          <form action={fabricAction} className="flex flex-wrap items-end gap-2">
+            <input type="hidden" name="orderId" value={orderId} />
+            <label className="w-36">
+              <span className="label">Fabric ₹</span>
+              <input
+                className="field tabular-nums"
+                name="fabric"
+                inputMode="decimal"
+                defaultValue={paiseToInput(totals.fabricPaise)}
+              />
+            </label>
+            <SubmitButton className="btn-secondary btn-sm" pendingLabel="Saving…">
+              Save fabric
+            </SubmitButton>
+          </form>
+        </div>
+
         <div>
           <FormError message={chargeState.error} />
           <form action={chargeAction} className="flex flex-wrap items-end gap-2">

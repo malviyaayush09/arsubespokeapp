@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { measurementSets, measurementValues } from "@/db/schema";
-import { getOwnFieldsFor } from "@/lib/measurements";
+import { getOwnMeasurementFields } from "@/lib/measurements";
 import { parseMeasurement } from "@/lib/measure";
 import { today } from "@/lib/format";
 
@@ -39,7 +39,7 @@ export async function saveMeasurementSet(
      Kurta writes only the Kurta's own extra length. Using the merged list
      here would copy the shared numbers into a garment-scoped set, and the
      sharing would quietly stop working. */
-  const fields = getOwnFieldsFor(garmentTypeId);
+  const fields = getOwnMeasurementFields(garmentTypeId);
 
   const entered = fields
     .map((field) => {

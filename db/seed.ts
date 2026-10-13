@@ -36,7 +36,10 @@ type FieldSeed = {
   code: string;
   unit?: string;
   type?: FieldType;
+  choices?: string[];
   hint?: string;
+  /** "Measurements" or "Style" - see the note on style() below. */
+  group?: string;
 };
 
 /* Free text, not a measurement: no unit, and kept away from the number
@@ -48,6 +51,37 @@ const notes = (code: string): FieldSeed => ({
   type: "text",
   unit: "",
   hint: "Slim fit, ankle length, pleats - anything that is not a number",
+});
+
+/* STYLE, which is not measurement.
+ *
+ * Arsu writes these beside the amounts on his sheet - how many pockets, what
+ * cuff, single or back pocket. They are not facts about the client's body:
+ * chest is 40 for every shirt he ever orders, but this shirt has one pocket
+ * and the next might have two.
+ *
+ * So they carry groupName "Style", which keeps them OUT of the measuring form
+ * (where they would be saved against the person and wrongly reused) and IN
+ * the order's garment card, where they are chosen per job and printed on the
+ * cutting copy. Repeat order copies them forward, which is how "same as last
+ * time" works.
+ *
+ * Choice lists only where the options are self-evident - a count, or yes and
+ * no. Everything that depends on his own vocabulary is a text box, because a
+ * dropdown missing his word is worse than an empty box. Convert them to
+ * choices in Settings once his real list is known.
+ */
+const style = (
+  label: string,
+  code: string,
+  choices?: string[],
+): FieldSeed => ({
+  label,
+  code,
+  unit: "",
+  type: choices ? "choice" : "text",
+  choices,
+  group: "Style",
 });
 
 type GroupSeed = {
@@ -77,6 +111,11 @@ const GROUPS: GroupSeed[] = [
       { label: "Slv Open", code: "up_slv_open" },
       { label: "Cross Back", code: "up_cross_back" },
       notes("up_fit_notes"),
+      style("Pockets", "up_pockets", ["None", "1", "2"]),
+      style("Cuff", "up_cuff"),
+      style("Collar", "up_collar_style"),
+      style("Buttons", "up_buttons"),
+      style("Other", "up_style_other"),
     ],
   },
   {
@@ -92,6 +131,12 @@ const GROUPS: GroupSeed[] = [
       { label: "Knee", code: "lo_knee" },
       { label: "Calf", code: "lo_calf" },
       notes("lo_fit_notes"),
+      style("Pleats", "lo_pleats", ["Flat", "1", "2"]),
+      style("Hip pockets", "lo_hip_pockets", ["None", "1", "2"]),
+      style("Back pockets", "lo_back_pockets", ["None", "1", "2"]),
+      style("Watch pocket", "lo_watch_pocket", ["No", "Yes"]),
+      style("Bottom", "lo_bottom_style"),
+      style("Other", "lo_style_other"),
     ],
   },
 ];
@@ -179,8 +224,8 @@ function seedFields(ownerId: number, fields: FieldSeed[]): number {
         hint: field.hint ?? null,
         unit: field.unit ?? "in",
         fieldType: field.type ?? "number",
-        choices: null,
-        groupName: "Measurements",
+        choices: field.choices ? JSON.stringify(field.choices) : null,
+        groupName: field.group ?? "Measurements",
         sortOrder: index * 10,
       })
       .run();

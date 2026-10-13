@@ -11,8 +11,11 @@ export const SETTING_KEYS = [
   "shop_tagline",
   "shop_address",
   "shop_phone",
+  "shop_store_phone",
+  "shop_email",
   "shop_instagram",
   "bill_footer",
+  "shop_terms",
 ] as const;
 
 export type SettingKey = (typeof SETTING_KEYS)[number];
@@ -21,7 +24,10 @@ export const SETTING_LABELS: Record<SettingKey, string> = {
   shop_name: "Shop name",
   shop_tagline: "Tagline",
   shop_address: "Address",
-  shop_phone: "Phone",
+  shop_phone: "Mobile",
+  shop_store_phone: "Store number",
+  shop_email: "Email",
   shop_instagram: "Instagram",
   bill_footer: "Bill footer note",
+  shop_terms: "Terms printed at the foot of every copy",
 };
