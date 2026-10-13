@@ -26,6 +26,7 @@ import {
   real,
   index,
   uniqueIndex,
+  type AnySQLiteColumn,
 } from "drizzle-orm/sqlite-core";
 
 export const ORDER_STATUSES = [
@@ -132,6 +133,35 @@ export const garmentTypes = sqliteTable(
       .default("other"),
     isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
     sortOrder: integer("sort_order").notNull().default(0),
+    /* MEASUREMENT GROUPS, and why they are modelled as garment types.
+     *
+     * Arsu does not measure per garment. His order sheet has eleven rows for
+     * the upper body — Length, Chest, Stomach, Hip, Shoulder, Slv Length, Half
+     * Slv Length, Collar, Arm Loosing, Slv Open, Cross Back — and those same
+     * eleven serve Shirt, Kurta, Coat, W-coat, Bandi, Bandhgala, Sherwani and
+     * Indowestern. Eight more serve Pant, Shorts, Dhoti and Chudi Pant.
+     * Nineteen numbers for the whole business.
+     *
+     * So "Upper body" and "Lower body" are garment types carrying isTemplate:
+     * they hold the shared fields and can never be ordered. Every real garment
+     * points inheritsFromId at one of them, and its measuring form is the
+     * template's fields followed by any of its own — a Kurta's extra length.
+     *
+     * Modelled this way rather than as new tables because
+     * measurement_fields.garment_type_id and measurement_sets.garment_type_id
+     * are both NOT NULL, SQLite cannot drop NOT NULL without rebuilding the
+     * table, and rebuilding either one fails on the foreign keys
+     * order_item_measurements holds into them. Two ADD COLUMNs do the whole
+     * job, and a client's upper-body measurements become an ordinary
+     * measurement_set against the template — no new concepts downstream. */
+    inheritsFromId: integer("inherits_from_id").references(
+      (): AnySQLiteColumn => garmentTypes.id,
+      { onDelete: "set null" },
+    ),
+    /** A measurement group rather than a garment. Never offered on an order. */
+    isTemplate: integer("is_template", { mode: "boolean" })
+      .notNull()
+      .default(false),
     /* House rates, copied onto a new order line so they are not retyped every
        time. Copied, not referenced — raising the shirt rate next year must not
        silently reprice a bill from last year. */

@@ -89,4 +89,31 @@ export const MIGRATIONS: Migration[] = [
       }
     },
   },
+  {
+    id: "0003_measurement_groups",
+    description:
+      "Shared measurement groups: garment types that inherit their fields",
+    run: (db) => {
+      /* See the long note on garmentTypes in db/schema.ts. Arsu measures by
+         body half, not by garment: eleven numbers for the upper body serve
+         eight garments, eight for the lower body serve four. A measurement
+         group is a garment type carrying is_template, and every real garment
+         inherits that group's fields.
+
+         Purely additive. Existing rows get NULL and 0, which means "owns its
+         own fields" - precisely how the app behaved before - so this cannot
+         disturb a shop already using it, and older code restored by a
+         rollback simply ignores both columns. */
+      if (!hasColumn(db, "garment_types", "inherits_from_id")) {
+        db.exec(
+          "ALTER TABLE garment_types ADD COLUMN inherits_from_id INTEGER REFERENCES garment_types(id) ON DELETE SET NULL",
+        );
+      }
+      if (!hasColumn(db, "garment_types", "is_template")) {
+        db.exec(
+          "ALTER TABLE garment_types ADD COLUMN is_template INTEGER NOT NULL DEFAULT 0",
+        );
+      }
+    },
+  },
 ];
