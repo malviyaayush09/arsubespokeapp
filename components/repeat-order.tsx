@@ -9,10 +9,13 @@ export function RepeatOrderButton({
   orderId,
   orderNo,
   className = "btn-secondary btn-sm",
+  label = "Repeat this order",
 }: {
   orderId: number;
   orderNo: string;
   className?: string;
+  /** "Repeat" inside a table row, the full sentence where there is space. */
+  label?: string;
 }) {
   const [state, formAction] = useActionState<ActionState, FormData>(
     repeatOrder,
@@ -29,7 +32,7 @@ export function RepeatOrderButton({
           pendingLabel="Creating…"
           confirm={`Start a new order with the same garments and the exact measurements from ${orderNo}?`}
         >
-          Repeat this order
+          {label}
         </SubmitButton>
       </form>
     </>

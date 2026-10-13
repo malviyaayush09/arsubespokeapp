@@ -112,6 +112,16 @@ export default async function OrderPage({
         <span className="text-xs text-muted">
           Opens WhatsApp with the message written. You press send.
         </span>
+
+        {/* I had moved this to the bottom of the page to thin out the header,
+            and measured it afterwards at 81% down a 2,666px page - which is
+            the same as deleting it. Thinning a screen must not cost him the
+            one shortcut that turns a repeat customer into fifteen seconds of
+            work. It is also on every row of his order history, which is
+            where "same as last time" is actually said. */}
+        <div className="ml-auto">
+          <RepeatOrderButton orderId={order.id} orderNo={order.orderNo} />
+        </div>
       </div>
 
       {blanks > 0 ? (
@@ -154,12 +164,6 @@ export default async function OrderPage({
               lineTotalPaise: item.lineTotalPaise,
             }))}
           />
-
-          {/* Repeat order lives down here, not in the header. It starts the
-              NEXT job and has nothing to do with handling this one. */}
-          <div className="no-print">
-            <RepeatOrderButton orderId={order.id} orderNo={order.orderNo} />
-          </div>
 
           <OrderMetaForm
             orderId={order.id}

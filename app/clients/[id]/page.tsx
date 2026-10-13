@@ -9,6 +9,7 @@ import { formatPaise } from "@/lib/money";
 import { formatDate } from "@/lib/format";
 import { DueChip, Money, PageHeader, StatusChip } from "@/components/ui";
 import { requireUnlocked } from "@/lib/security";
+import { RepeatOrderButton } from "@/components/repeat-order";
 
 export const dynamic = "force-dynamic";
 
@@ -187,6 +188,7 @@ export default async function ClientPage({
                       <th className="th">Status</th>
                       <th className="th text-right">Total</th>
                       <th className="th text-right">Balance</th>
+                      <th className="th"></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -219,6 +221,17 @@ export default async function ClientPage({
                             className={
                               order.balancePaise > 0 ? "font-medium text-danger" : "text-muted"
                             }
+                          />
+                        </td>
+                        {/* "Same as last time" is said at the counter while
+                            you are looking him up - not while you happen to
+                            have an old order open. This is where it belongs. */}
+                        <td className="td">
+                          <RepeatOrderButton
+                            orderId={order.id}
+                            orderNo={order.orderNo}
+                            label="Repeat"
+                            className="btn-secondary btn-sm"
                           />
                         </td>
                       </tr>
