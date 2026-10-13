@@ -148,13 +148,27 @@ export async function importClients(
   /* Measurement columns are matched by header name against this garment's
      field labels and codes. Anything unmatched is simply left alone rather
      than guessed at. */
-  const measurementColumns: { fieldId: number; index: number }[] = [];
+  const measurementColumns: {
+    fieldId: number;
+    /* Which garment type OWNS this field - the measurement group for a shared
+       one, the garment itself for an extra. A set has to be written against
+       the owner, or an imported chest measurement lands in a Shirt-scoped set
+       where no Kurta will ever find it. */
+    ownerId: number;
+    index: number;
+  }[] = [];
   if (garment) {
     for (const field of getFieldsFor(garment.id)) {
       const index = normalised.findIndex(
         (h) => h === normaliseHeader(field.label) || h === normaliseHeader(field.code),
       );
-      if (index >= 0) measurementColumns.push({ fieldId: field.id, index });
+      if (index >= 0) {
+        measurementColumns.push({
+          fieldId: field.id,
+          ownerId: field.garmentTypeId,
+          index,
+        });
+      }
     }
   }
 
@@ -214,19 +228,29 @@ export async function importClients(
 
       if (garment && measurementColumns.length > 0) {
         const values = measurementColumns
-          .map(({ fieldId, index }) => {
+          .map(({ fieldId, ownerId, index }) => {
             const { text: valueText, num } = parseMeasurement(cell(row, index));
             if (valueText === "") return null;
-            return { fieldId, valueText, valueNum: num };
+            return { fieldId, ownerId, valueText, valueNum: num };
           })
           .filter((v): v is NonNullable<typeof v> => v !== null);
 
-        if (values.length > 0) {
+        /* One set per OWNER, not one per garment. Columns that turn out to be
+           upper-body measurements go into the upper-body group's set, where
+           every upper-body garment reads them. */
+        const byOwner = new Map<number, typeof values>();
+        for (const value of values) {
+          const list = byOwner.get(value.ownerId);
+          if (list) list.push(value);
+          else byOwner.set(value.ownerId, [value]);
+        }
+
+        for (const [ownerId, ownValues] of byOwner) {
           const set = tx
             .insert(measurementSets)
             .values({
               clientId: client.id,
-              garmentTypeId: garment.id,
+              garmentTypeId: ownerId,
               takenOn: today(),
               notes: "Imported from spreadsheet",
             })
@@ -234,7 +258,14 @@ export async function importClients(
             .get();
 
           tx.insert(measurementValues)
-            .values(values.map((v) => ({ ...v, setId: set.id })))
+            .values(
+              ownValues.map(({ fieldId, valueText, valueNum }) => ({
+                fieldId,
+                valueText,
+                valueNum,
+                setId: set.id,
+              })),
+            )
             .run();
 
           measurementsCreated += 1;

@@ -4,7 +4,7 @@ import { desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { CATEGORY_LABELS, clients } from "@/db/schema";
 import { listGarmentTypes, nextOrderNo } from "@/lib/orders";
-import { listMeasuredGarments } from "@/lib/measurements";
+import { lastMeasuredOn } from "@/lib/measurements";
 import { formatDate, today } from "@/lib/format";
 import { PageHeader } from "@/components/ui";
 import { ClientPicker } from "@/components/client-picker";
@@ -70,16 +70,17 @@ export default async function NewOrderPage({
   const client = db.select().from(clients).where(eq(clients.id, id)).get();
   if (!client) notFound();
 
-  const measured = new Map(
-    listMeasuredGarments(id).map((m) => [m.garmentTypeId, m.takenOn]),
-  );
-
   const garments = listGarmentTypes().map((type) => ({
     id: type.id,
     name: type.name,
     category: type.category,
     categoryLabel: CATEGORY_LABELS[type.category],
-    measuredOn: measured.has(type.id) ? formatDate(measured.get(type.id)!) : null,
+    /* Drawn from the garment's measurement groups, so a Shirt reads as
+       measured the moment the client's upper body has been. */
+    measuredOn: (() => {
+      const on = lastMeasuredOn(id, type.id);
+      return on ? formatDate(on) : null;
+    })(),
   }));
 
   return (

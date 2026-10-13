@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { garmentTypes } from "@/db/schema";
-import { getFieldsFor } from "@/lib/measurements";
+import { getGroupsFor, getOwnFieldsFor } from "@/lib/measurements";
 import { PageHeader } from "@/components/ui";
 import { FieldsEditor, GarmentTypeForm } from "@/components/garment-forms";
 import { requireUnlocked } from "@/lib/security";
@@ -27,13 +27,24 @@ export default async function GarmentTypePage({
     .get();
   if (!garment) notFound();
 
-  const fields = getFieldsFor(garmentTypeId);
+  /* OWN fields only. The shared ones belong to the measurement group and are
+     edited on the group's own screen - showing them here would invite someone
+     to rename Chest for Shirts and wonder why Kurtas changed too. */
+  const fields = getOwnFieldsFor(garmentTypeId);
+  const groups = getGroupsFor(garmentTypeId);
 
   return (
     <>
       <PageHeader
         title={garment.name}
-        subtitle={`${fields.length} field${fields.length === 1 ? "" : "s"} · these are the inputs that appear when measuring this garment`}
+        subtitle={
+          groups.length > 0
+            ? `Measured as ${groups.map((g) => g.name).join(" + ")}` +
+              (fields.length > 0
+                ? `, plus ${fields.length} field${fields.length === 1 ? "" : "s"} of its own below`
+                : " — nothing extra of its own")
+            : `${fields.length} field${fields.length === 1 ? "" : "s"} · these are the inputs that appear when measuring this garment`
+        }
         action={
           <Link href="/settings/garments" className="btn-secondary btn-sm">
             All garment types

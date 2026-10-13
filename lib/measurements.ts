@@ -154,6 +154,137 @@ export function listSetsForClient(clientId: number) {
 }
 
 /** Garment types this client has ever been measured for, newest set first. */
+export type MeasurementTarget = {
+  id: number;
+  name: string;
+  /** A shared group rather than one garment. */
+  isGroup: boolean;
+  /** How many fields get filled in. */
+  fieldCount: number;
+  /** Which garments this measuring session serves. Empty for a garment's own extras. */
+  servesNames: string[];
+};
+
+/**
+ * What there is to measure, which is NOT the same as what can be ordered.
+ *
+ * Arsu measures an upper body and a lower body, so those are the two things
+ * offered. A garment appears here only when it has fields of its own on top of
+ * its group's - a Kurta's extra length - and a garment belonging to no group
+ * appears with its own fields, which is how all of them behaved before groups
+ * existed.
+ */
+export function listMeasurementTargets(): MeasurementTarget[] {
+  const all = db
+    .select()
+    .from(garmentTypes)
+    .where(eq(garmentTypes.isActive, true))
+    .orderBy(asc(garmentTypes.sortOrder), asc(garmentTypes.name))
+    .all();
+
+  const links = db
+    .select({
+      garmentTypeId: garmentTypeGroups.garmentTypeId,
+      groupId: garmentTypeGroups.groupId,
+    })
+    .from(garmentTypeGroups)
+    .all();
+
+  const nameById = new Map(all.map((t) => [t.id, t.name]));
+  const targets: MeasurementTarget[] = [];
+
+  for (const row of all) {
+    const own = getOwnFieldsFor(row.id).length;
+
+    if (row.isTemplate) {
+      targets.push({
+        id: row.id,
+        name: row.name,
+        isGroup: true,
+        fieldCount: own,
+        servesNames: links
+          .filter((l) => l.groupId === row.id)
+          .map((l) => nameById.get(l.garmentTypeId))
+          .filter((n): n is string => Boolean(n)),
+      });
+      continue;
+    }
+
+    /* A garment with groups and nothing of its own has nothing to measure
+       here - it is covered entirely by its groups. */
+    const hasGroups = links.some((l) => l.garmentTypeId === row.id);
+    if (own === 0 || (hasGroups && own === 0)) continue;
+
+    targets.push({
+      id: row.id,
+      name: hasGroups ? `${row.name} — extras` : row.name,
+      isGroup: false,
+      fieldCount: own,
+      servesNames: [],
+    });
+  }
+
+  return targets;
+}
+
+/**
+ * Every measurement a garment needs for this client, keyed by field id.
+ *
+ * THIS is what makes one measuring session serve eight garments. A client's
+ * upper body is measured once, against the "Upper body" group; a Shirt, a
+ * Kurta and a Sherwani then all read that same set. A suit reads both halves.
+ * Anything a garment owns outright is read from its own set and layered on
+ * top, so a Kurta's extra length lives with the Kurta.
+ *
+ * A garment with no groups falls back to its own set alone, which is how
+ * every garment behaved before groups existed.
+ */
+export function getMergedValues(
+  clientId: number,
+  garmentTypeId: number,
+): Record<number, { valueText: string; valueNum: number | null }> {
+  const merged: Record<number, { valueText: string; valueNum: number | null }> =
+    {};
+
+  /* Groups first, then the garment's own, so a field a garment defines for
+     itself wins over an inherited one of the same id - which cannot happen
+     today, but costs nothing to get right. */
+  for (const group of getGroupsFor(garmentTypeId)) {
+    const set = getLatestSet(clientId, group.id);
+    if (set) Object.assign(merged, set.values);
+  }
+
+  const own = getLatestSet(clientId, garmentTypeId);
+  if (own) Object.assign(merged, own.values);
+
+  return merged;
+}
+
+/**
+ * When was this garment last measured for this client? The oldest of the
+ * dates it depends on, because a suit measured up top in March and below in
+ * July is only as current as March.
+ *
+ * Returns null when any part of it has never been measured - the order form
+ * shows that in red rather than quietly writing blanks onto a cutting card.
+ */
+export function lastMeasuredOn(
+  clientId: number,
+  garmentTypeId: number,
+): string | null {
+  const sources = getGroupsFor(garmentTypeId).map((g) => g.id);
+  if (getOwnFieldsFor(garmentTypeId).length > 0) sources.push(garmentTypeId);
+  if (sources.length === 0) return null;
+
+  let oldest: string | null = null;
+  for (const id of sources) {
+    const set = getLatestSet(clientId, id);
+    if (!set) return null;
+    if (oldest === null || set.set.takenOn < oldest) oldest = set.set.takenOn;
+  }
+  return oldest;
+}
+
 export function listMeasuredGarments(clientId: number) {
   const sets = listSetsForClient(clientId);
   const seen = new Map<number, { garmentTypeId: number; garmentName: string; takenOn: string; setId: number }>();

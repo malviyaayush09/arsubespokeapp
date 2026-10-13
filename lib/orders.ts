@@ -281,11 +281,32 @@ export function statusCounts() {
 
 /* ── garment types ────────────────────────────────────────────────────── */
 
+/**
+ * The garments that can actually be ordered.
+ *
+ * Measurement groups are stored as garment types (see db/schema.ts), so they
+ * must be excluded here or "Upper body" turns up in the order picker as
+ * something a client can buy.
+ */
 export function listGarmentTypes(includeInactive = false) {
   return db
     .select()
     .from(garmentTypes)
-    .where(includeInactive ? undefined : eq(garmentTypes.isActive, true))
+    .where(
+      includeInactive
+        ? eq(garmentTypes.isTemplate, false)
+        : and(eq(garmentTypes.isActive, true), eq(garmentTypes.isTemplate, false)),
+    )
+    .orderBy(asc(garmentTypes.sortOrder), asc(garmentTypes.name))
+    .all();
+}
+
+/** The measurement groups: "Upper body", "Lower body". Never orderable. */
+export function listMeasurementGroups() {
+  return db
+    .select()
+    .from(garmentTypes)
+    .where(eq(garmentTypes.isTemplate, true))
     .orderBy(asc(garmentTypes.sortOrder), asc(garmentTypes.name))
     .all();
 }

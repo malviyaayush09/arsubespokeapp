@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { measurementSets, measurementValues } from "@/db/schema";
-import { getFieldsFor } from "@/lib/measurements";
+import { getOwnFieldsFor } from "@/lib/measurements";
 import { parseMeasurement } from "@/lib/measure";
 import { today } from "@/lib/format";
 
@@ -32,7 +32,14 @@ export async function saveMeasurementSet(
 
   const takenOn = String(formData.get("takenOn") ?? "").trim() || today();
   const notes = String(formData.get("notes") ?? "").trim() || null;
-  const fields = getFieldsFor(garmentTypeId);
+
+  /* OWN fields, never inherited ones. A set stores exactly what its target
+     owns: measuring "Upper body" writes the eleven shared numbers into the
+     group's set, where every upper-body garment reads them, and measuring a
+     Kurta writes only the Kurta's own extra length. Using the merged list
+     here would copy the shared numbers into a garment-scoped set, and the
+     sharing would quietly stop working. */
+  const fields = getOwnFieldsFor(garmentTypeId);
 
   const entered = fields
     .map((field) => {

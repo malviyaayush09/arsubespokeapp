@@ -20,7 +20,7 @@ import {
   type OrderStatus,
 } from "@/db/schema";
 import { nextOrderNo, orderNoTaken } from "@/lib/orders";
-import { getFieldsFor, getLatestSet } from "@/lib/measurements";
+import { getFieldsFor, getMergedValues } from "@/lib/measurements";
 import { parseMeasurement } from "@/lib/measure";
 import { parseRupeesToPaise } from "@/lib/money";
 import { today } from "@/lib/format";
@@ -52,12 +52,15 @@ function snapshotMeasurements(
   const fields = getFieldsFor(garmentTypeId);
   if (fields.length === 0) return;
 
-  const latest = getLatestSet(clientId, garmentTypeId);
+  /* Merged across the garment's measurement groups, so a Shirt and a Kurta
+     both pick up the one upper-body measuring session, and a suit picks up
+     both halves. */
+  const savedValues = getMergedValues(clientId, garmentTypeId);
 
   db.insert(orderItemMeasurements)
     .values(
       fields.map((field, index) => {
-        const saved = latest?.values[field.id];
+        const saved = savedValues[field.id];
         return {
           orderItemId,
           fieldId: field.id,
