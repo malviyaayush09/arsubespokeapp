@@ -5,6 +5,7 @@ import { formatPaise } from "@/lib/money";
 import { formatDate } from "@/lib/format";
 import { PageHeader } from "@/components/ui";
 import { requireUnlocked } from "@/lib/security";
+import { ReportsNav } from "@/components/reports-nav";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +36,7 @@ export default async function ReportsPage({
 
   return (
     <>
+      <ReportsNav current="reports" />
       <PageHeader
         title={`${MONTH_NAMES[month - 1]} ${year}`}
         subtitle={`${formatDate(report.from)} — ${formatDate(report.to)}`}

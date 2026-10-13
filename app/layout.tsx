@@ -34,7 +34,16 @@ const NAV = [
   { href: "/clients", label: "Clients" },
 ];
 
-const SETUP = { href: "/settings", label: "Shop setup" };
+/* Two quiet doors, and they are NOT the same kind of thing.
+ *
+ * Reports is read: the day book is his evening count, monthly figures are how
+ * the shop is doing. Shop setup is configured - rates, the PIN, backup - and
+ * then left alone for months. Filing them together put a screen that can
+ * change a price next to one he opens most evenings. */
+const ASIDE = [
+  { href: "/daybook", label: "Reports" },
+  { href: "/settings", label: "Shop setup" },
+];
 
 export default async function RootLayout({
   children,
@@ -90,15 +99,17 @@ export default async function RootLayout({
             </nav>
 
             <div className="ml-auto flex items-center gap-2">
-              {/* Deliberately set apart from the three, and quieter than
-                  them: a destination you go to on purpose, not one you pass
-                  through during a day's work. */}
-              <Link
-                href={SETUP.href}
-                className="rounded-md px-3 py-2 text-sm text-bone/50 transition hover:bg-white/10 hover:text-bone"
-              >
-                {SETUP.label}
-              </Link>
+              {/* Set apart from the three and quieter: destinations you go to
+                  on purpose, not ones you pass through during a day's work. */}
+              {ASIDE.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className="rounded-md px-3 py-2 text-sm text-bone/50 transition hover:bg-white/10 hover:text-bone"
+                >
+                  {item.label}
+                </Link>
+              ))}
 
               {isPinEnabled() ? (
                 <form action={lockNow}>

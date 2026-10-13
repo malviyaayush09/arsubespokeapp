@@ -39,23 +39,10 @@ export default async function SettingsPage() {
     <>
       <PageHeader
         title="Shop setup"
-        subtitle="Rates, what you stitch, backup and the month's figures. Set once, then rarely."
+        subtitle="Rates, what you stitch, backup and the PIN. Set once, then left alone."
       />
 
       <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {/* Reports and Day book live here rather than in the main nav. They
-            are something you read when you choose to, not a place to pass
-            through while a client waits. */}
-        <Card
-          href="/daybook"
-          title="Day book"
-          detail="What came in today"
-        />
-        <Card
-          href="/reports"
-          title="Monthly figures"
-          detail="Orders, billed, collected, outstanding"
-        />
         <Card
           href="/settings/garments"
           title="What you stitch"

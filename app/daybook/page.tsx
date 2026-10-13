@@ -5,6 +5,7 @@ import { formatPaise } from "@/lib/money";
 import { formatDate, today } from "@/lib/format";
 import { Money, PageHeader } from "@/components/ui";
 import { requireUnlocked } from "@/lib/security";
+import { ReportsNav } from "@/components/reports-nav";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +39,7 @@ export default async function DayBookPage({
 
   return (
     <>
+      <ReportsNav current="daybook" />
       <PageHeader
         title="Day book"
         subtitle={
