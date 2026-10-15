@@ -12,12 +12,13 @@
 import fs from "node:fs";
 import path from "node:path";
 import Database from "better-sqlite3";
+import { resolveDbPath } from "./db-path";
 
 const label = (process.argv[2] ?? "manual").replace(/[^a-z0-9-]/gi, "");
 
-const dbPath = path.resolve(
-  process.env.ARSU_DB_PATH ?? path.join(process.cwd(), "data", "arsu.db"),
-);
+/* mustExist off: a laptop with no database yet is not an error here, it just
+   has nothing to back up. See scripts/db-path.ts. */
+const dbPath = resolveDbPath({ mustExist: false });
 
 /* Sibling of the data folder, so it survives the app folder being replaced. */
 const dir =

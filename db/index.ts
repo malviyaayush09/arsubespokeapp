@@ -32,8 +32,25 @@ export const DB_PATH = path.resolve(
 );
 
 function open() {
-  fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
-  const sqlite = new Database(DB_PATH);
+  /* Do NOT create one. SQLite makes a database out of any missing filename it
+   * is handed, and this module used to mkdir its way to the file as well - so
+   * `npm run start` typed in the app folder, with no ARSU_DB_PATH set by the
+   * launcher, silently built an empty database beside the code and served a
+   * shop with no clients in it. The real one was two directories up,
+   * untouched and invisible, and nothing said anything was wrong.
+   *
+   * It leaves a decoy behind too, which is how `npm run db:clear` came to
+   * report "no such table: payments" about a file nobody had ever used. */
+  if (!fs.existsSync(DB_PATH)) {
+    throw new Error(
+      `No database at ${DB_PATH}.\n` +
+        `On the shop laptop it lives in C:\\ArsuAtelier\\data - start the app ` +
+        `with the ARSU shortcut or scripts\\update.ps1, both of which set ` +
+        `ARSU_DB_PATH. On a development machine: npm run db:setup`,
+    );
+  }
+
+  const sqlite = new Database(DB_PATH, { fileMustExist: true });
 
   /* SQLite ships with foreign keys DISABLED. Every ON DELETE CASCADE in
      schema.ts is inert without this line — deleting a client would leave

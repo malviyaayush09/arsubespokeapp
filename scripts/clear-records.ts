@@ -16,6 +16,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import Database from "better-sqlite3";
+import { resolveDbPath } from "./db-path";
 
 /* Deleted, newest-dependent first. Order matters even with cascades on: this
    runs the same way whether or not foreign keys are enforced. */
@@ -43,13 +44,18 @@ const SETUP = [
 
 const go = process.argv.slice(2).includes("--yes");
 
-const dbPath = path.resolve(
-  process.env.ARSU_DB_PATH ?? path.join(process.cwd(), "data", "arsu.db"),
-);
-
-const backupDir =
-  process.env.ARSU_BACKUP_DIR ??
-  path.join(path.dirname(dbPath), "..", "backups");
+/* Resolved inside main(), not at module scope: resolution can fail with a
+   sentence worth reading, and a throw out here prints a stack trace over it.
+   See scripts/db-path.ts for why it is resolved at all - typed by hand in the
+   app folder, the old guess pointed at a path that did not exist, SQLite
+   obligingly created an empty database there, and this script then reported
+   "no such table: payments" about a file nobody had ever used. */
+function backupDirFor(dbPath: string) {
+  return (
+    process.env.ARSU_BACKUP_DIR ??
+    path.join(path.dirname(dbPath), "..", "backups")
+  );
+}
 
 function countsOf(db: Database.Database, tables: readonly string[]) {
   const out: Record<string, number> = {};
@@ -70,13 +76,32 @@ function show(title: string, counts: Record<string, number>) {
 }
 
 async function main() {
-  if (!fs.existsSync(dbPath)) {
-    console.error(`No database at ${dbPath}.`);
-    process.exit(1);
-  }
+  const dbPath = resolveDbPath();
+  const backupDir = backupDirFor(dbPath);
 
-  const db = new Database(dbPath);
+  /* fileMustExist, so a wrong path is an error rather than a new database. */
+  const db = new Database(dbPath, { fileMustExist: true });
   db.pragma("foreign_keys = ON");
+
+  /* Name every table the delete needs before touching anything. A database
+     from an older install can be missing one, and finding that out halfway
+     through is how you get a half-cleared shop. */
+  const present = new Set(
+    (
+      db
+        .prepare(`SELECT name FROM sqlite_master WHERE type = 'table'`)
+        .all() as { name: string }[]
+    ).map((r) => r.name),
+  );
+  const missing = [...RECORDS, ...SETUP].filter((t) => !present.has(t));
+  if (missing.length > 0) {
+    db.close();
+    throw new Error(
+      `${dbPath}\nis missing these tables: ${missing.join(", ")}.\n` +
+        `That is not a database this version can clear - run ` +
+        `scripts\\update.ps1 so the migrations are applied first.`,
+    );
+  }
 
   const before = countsOf(db, RECORDS);
   const keep = countsOf(db, SETUP);

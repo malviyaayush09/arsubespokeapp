@@ -15,10 +15,12 @@ import fs from "node:fs";
 import path from "node:path";
 import Database from "better-sqlite3";
 import { MIGRATIONS, type MigrationDb } from "../db/migrations";
+import { resolveDbPath } from "./db-path";
 
-const DB_PATH = path.resolve(
-  process.env.ARSU_DB_PATH ?? path.join(process.cwd(), "data", "arsu.db"),
-);
+/* mustExist off: on a brand-new laptop this script's whole job is to create
+   it. When one already exists it is found wherever it actually lives, which a
+   bare `<cwd>/data/arsu.db` did not do from the installed app folder. */
+const DB_PATH = resolveDbPath({ mustExist: false });
 
 function log(message: string) {
   console.log(`[db] ${message}`);
