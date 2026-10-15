@@ -10,7 +10,8 @@
     "db:setup": "tsx scripts/db-setup.ts",
     "db:seed": "tsx db/seed.ts",
     "db:push": "drizzle-kit push",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "db:clear": "tsx scripts/clear-records.ts"
   },
   "dependencies": {
     "next": "16.3.4",

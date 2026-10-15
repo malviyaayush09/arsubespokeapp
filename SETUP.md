@@ -270,3 +270,29 @@ and would fail every night with a permission error. So run
 
 Before you leave, copy `C:\ArsuAtelier\backups\*.db` onto your own machine.
 A backup that only exists in the shop is not a backup.
+
+## Clearing the practice records
+
+The day the shop starts using it for real, whatever was entered while trying
+it out has to go — without taking the setup with it.
+
+```powershell
+cd C:\ArsuAtelier\app
+npm run db:clear              # shows what would go. Changes nothing.
+npm run db:clear -- --yes     # does it
+```
+
+Deleted: clients, orders, order items, the measurement snapshots on them,
+status history, payments, charges, and the measurements held against a client.
+
+Kept: the garments he stitches, the measurement groups and fields, his rates,
+the shop's name, address, phone, terms and bill footer, the PIN, tailors, and
+the migration history.
+
+It takes a backup first, into `C:\ArsuAtelier\backups\before-clear-*.db`, and
+refuses to go on if that backup fails its integrity check. The delete is one
+transaction, so it either all happens or none of it does. Order numbers start
+from 1 again.
+
+Run it with the app still running if you like — nothing is open in a way that
+would conflict. Reload the browser afterwards.
