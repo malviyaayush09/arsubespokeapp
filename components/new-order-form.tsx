@@ -68,19 +68,30 @@ export function NewOrderForm({
   const [search, setSearch] = useState("");
   const [clientId, setClientId] = useState<number | null>(preselectedClientId);
   const [picked, setPicked] = useState<number[]>([]);
+  /* Two men called Ramesh is an ordinary Tuesday. A name that finds somebody
+     must not mean this is that somebody, so there is always a way through to
+     a new record. */
+  const [addingNew, setAddingNew] = useState(false);
 
   const chosen = people.find((p) => p.id === clientId) ?? null;
 
   /* Matching on phone as well as name, because a tailor remembers a number
-     he has dialled more reliably than a spelling. */
+     he has dialled more reliably than a spelling.
+
+     The digit test is guarded, and that guard is the whole point: stripping
+     non-digits out of a typed NAME leaves "", and every phone number in the
+     world contains "". Unguarded, this matched every client on screen for any
+     name typed, the list never emptied, and so the offer to add somebody new
+     never appeared - a new client could not be taken at all. */
   const matches = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (q === "") return [];
+    const digits = q.replace(/\D/g, "");
     return people
       .filter(
         (p) =>
           p.name.toLowerCase().includes(q) ||
-          p.phone.replace(/\D/g, "").includes(q.replace(/\D/g, "")),
+          (digits !== "" && p.phone.replace(/\D/g, "").includes(digits)),
       )
       .slice(0, 8);
   }, [people, search]);
@@ -154,7 +165,10 @@ export function NewOrderForm({
               <input
                 className="field"
                 value={search}
-                onChange={(event) => setSearch(event.target.value)}
+                onChange={(event) => {
+                  setSearch(event.target.value);
+                  setAddingNew(false);
+                }}
                 placeholder="Start typing…"
                 autoComplete="off"
               />
@@ -173,13 +187,23 @@ export function NewOrderForm({
                     <span className="text-muted">{person.phone}</span>
                   </button>
                 ))}
+
+                {!addingNew ? (
+                  <button
+                    type="button"
+                    onClick={() => setAddingNew(true)}
+                    className="px-1 py-1 text-sm text-muted underline underline-offset-2 transition hover:text-ink"
+                  >
+                    None of these — add a new client
+                  </button>
+                ) : null}
               </div>
             ) : null}
 
             {/* No detour. A client who has never been here before is the
                 commonest thing that happens, and it should not mean leaving
                 this screen and finding the way back. */}
-            {search.trim() !== "" && matches.length === 0 ? (
+            {search.trim() !== "" && (matches.length === 0 || addingNew) ? (
               <div className="mt-3 rounded-md border border-gold/30 bg-gold-soft p-3">
                 <p className="text-sm">
                   Nobody by that name or number. Add them:
