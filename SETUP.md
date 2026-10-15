@@ -312,3 +312,60 @@ from 1 again.
 
 Run it with the app still running if you like — nothing is open in a way that
 would conflict. Reload the browser afterwards.
+
+## The iPad at the measuring table
+
+The app already listens on every interface (`next start -H 0.0.0.0`), so the
+iPad needs no software at all — only the laptop's address and a hole in the
+firewall. Both devices must be on the **same wifi**.
+
+**1. Set the PIN first.** Shop setup -> Security. Until this is done, anybody
+on that wifi can open the app and read every client's phone number. Do not
+skip it and come back later.
+
+**2. Make the shop wifi Private.** Windows calls an unknown network Public and
+blocks inbound traffic on it whatever rules exist. Check, and change it if
+needed (Administrator):
+
+```powershell
+Get-NetConnectionProfile
+Set-NetConnectionProfile -Name "<the wifi name it printed>" -NetworkCategory Private
+```
+
+**3. Open the port** (Administrator). `setup.ps1 -AllowTablet` does this; if
+the laptop was set up without that switch:
+
+```powershell
+New-NetFirewallRule -DisplayName "Arsu Atelier (3000)" -Direction Inbound `
+  -Action Allow -Protocol TCP -LocalPort 3000 -Profile Private
+```
+
+Private only, deliberately. On a cafe or airport wifi the port stays shut.
+
+**4. Find the laptop's address.** Not `localhost` — that means the iPad itself.
+This picks the real wifi adapter and ignores the Hyper-V and VPN ones, which
+is the usual reason a hand-copied address does not work:
+
+```powershell
+Get-NetIPAddress -AddressFamily IPv4 |
+  Where-Object { $_.InterfaceAlias -match 'Wi-Fi|Wireless|Ethernet' -and
+                 $_.InterfaceAlias -notmatch 'vEthernet' -and
+                 $_.IPAddress -notlike '169.254.*' } |
+  ForEach-Object { "http://$($_.IPAddress):3000   [$($_.InterfaceAlias)]" }
+```
+
+**5. On the iPad**, open Safari, type that address, enter the PIN once. Then
+**Share -> Add to Home Screen**. It gets the ARSU monogram as its icon and
+opens with no address bar, like an app. The unlock lasts 30 days per device.
+
+**6. Stop the address changing.** The router hands out a new one every few
+weeks and the bookmark then dies. Either reserve it in the router (DHCP
+reservation against the laptop's wifi MAC — the reliable fix), or set a static
+address on the laptop. Until one of those is done, expect to redo step 4
+occasionally.
+
+If the iPad cannot reach it: check both are on the same wifi (not one on a
+guest network), then that the app is actually up — `http://localhost:3000` on
+the laptop itself — then the two commands above, in that order. Client
+isolation, which some routers switch on by default, blocks device-to-device
+traffic entirely and can only be turned off in the router.

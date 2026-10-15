@@ -9,6 +9,21 @@ import { lockNow } from "@/app/actions/security";
 export const metadata: Metadata = {
   title: "Arsu Atelier",
   description: "Clients, measurements, orders and billing for Arsu Bespoke Studio.",
+  /* The iPad at the measuring table. "Add to Home Screen" then gives a real
+     icon (app/apple-icon.tsx) and opens with no address bar and no browser
+     chrome, which is both more room for measurements and one less thing on
+     screen that can be tapped by mistake. Every page is reachable from the
+     header, so losing the browser's Back button costs nothing. */
+  appleWebApp: {
+    capable: true,
+    title: "ARSU",
+    statusBarStyle: "black-translucent",
+  },
+  /* Next emits the modern `mobile-web-app-capable` for `capable: true`, which
+     WebKit only started treating as an alias in iOS 15.4. The shop's iPad may
+     well be older than that, and Apple's own spelling still works on every
+     version, so state it too rather than find out on the day. */
+  other: { "apple-mobile-web-app-capable": "yes" },
 };
 
 export const viewport: Viewport = {
