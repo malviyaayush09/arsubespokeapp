@@ -88,7 +88,23 @@ git push
 Then either wait for the nightly task, or force it now over Tailscale:
 
 ```powershell
-C:\ArsuAtelier\app\scripts\update.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File C:\ArsuAtelier\app\scripts\update.ps1 -Force
+```
+
+**Invoke it that way, not as `.\update.ps1`.** A stock Windows refuses to run
+any `.ps1` at all — *"running scripts is disabled on this system"* — and the
+refusal says nothing about what to do instead. `-ExecutionPolicy Bypass` on the
+command line applies to that one invocation, so nothing on the laptop is
+loosened and nothing has to be remembered next time. The scheduled tasks
+already launch themselves this way; it is only a run by hand that trips over
+it.
+
+To fix it once for the account instead of typing it every time — no admin
+rights needed, and scripts from a `git clone` are not internet-marked, so
+`RemoteSigned` is enough:
+
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 ```
 
 What it does, in this order — and the order is the design:

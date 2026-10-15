@@ -178,8 +178,12 @@ and a missed task runs on the next boot, which means the update would land
 while he is opening the shop. Lunchtime is better:
 
 ```powershell
-C:\ArsuAtelier\app\scripts\update.ps1 -InstallSchedule -At 14:00
+powershell -NoProfile -ExecutionPolicy Bypass -File C:\ArsuAtelier\app\scripts\update.ps1 -InstallSchedule -At 14:00
 ```
+
+(Called through `powershell -ExecutionPolicy Bypass -File` because a stock
+Windows will not run a `.ps1` typed by name — *"running scripts is disabled on
+this system"*. The flag covers that one invocation only.)
 
 **Check**
 
