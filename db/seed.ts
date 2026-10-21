@@ -433,6 +433,34 @@ export async function seed() {
     addedSettings += 1;
   }
 
+  /* Correcting one value I seeded wrongly, and ONLY where it is still exactly
+     what I seeded.
+
+     Settings are added and never overwritten, which is right: they are his to
+     set, and a reseed must not undo an evening spent getting the address
+     onto the letterhead. But that also means a bad default I shipped stays
+     bad forever on a laptop that was set up before I fixed it - his tagline
+     printed "Ethnic & Western Bespoke Studio" across all three copies while
+     this machine showed the shorter one, because only this one had been
+     seeded since.
+
+     Matching on the exact old string is what makes this safe: a tagline he
+     has typed himself does not match, so it is not touched. */
+  let correctedSettings = 0;
+  const STALE_DEFAULTS: Record<string, string> = {
+    shop_tagline: "Ethnic & Western Bespoke Studio",
+  };
+  for (const [key, stale] of Object.entries(STALE_DEFAULTS)) {
+    const wanted = SHOP_SETTINGS[key];
+    if (wanted === undefined || wanted === stale) continue;
+    const changed = db
+      .update(settings)
+      .set({ value: wanted })
+      .where(and(eq(settings.key, key), eq(settings.value, stale)))
+      .run().changes;
+    correctedSettings += changed;
+  }
+
   const totalTypes = db.select().from(garmentTypes).all().length;
   const totalFields = db.select().from(measurementFields).all().length;
 
@@ -443,7 +471,7 @@ export async function seed() {
       `  group links   : ${addedLinks} added this run\n` +
       `  fields dropped: ${removedFields} invented one(s) a group now covers\n` +
       `  retired       : ${retired} hidden this run\n` +
-      `  settings      : ${addedSettings} added this run`,
+      `  settings      : ${addedSettings} added, ${correctedSettings} stale default(s) corrected`,
   );
 }
 
