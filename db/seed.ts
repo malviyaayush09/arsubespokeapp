@@ -173,6 +173,9 @@ const GARMENTS: GarmentSeed[] = [
   { name: "Shorts", slug: "shorts", category: "western", groups: ["group-lower"] },
   { name: "Dhoti", slug: "dhoti", category: "mens_ethnic", groups: ["group-lower"] },
   { name: "Chudi Pant", slug: "chudi-pant", category: "womens_ethnic", groups: ["group-lower"] },
+  /* The safari suit: bush shirt and trousers, so both halves of the body.
+     If he bills the shirt on its own, drop group-lower here. */
+  { name: "Safari", slug: "safari", category: "western", groups: ["group-upper", "group-lower"] },
 
   /* ── sold with the garment, never measured ───────────────────────────────
    *

@@ -263,7 +263,20 @@ function HeadBand({
               className="h-[8mm] w-auto shrink-0 self-center"
             />
           ) : null}
-          <span className="font-serif text-xl tracking-[0.2em]">{shop.name}</span>
+          {/* The name and what the place is, stacked, exactly as on the
+              client's receipt. It is the studio's own paper whichever copy
+              it is, and the tagline costs nothing: the band is already as
+              tall as the serif name beside it. */}
+          <span className="leading-tight">
+            <span className="block font-serif text-xl tracking-[0.2em]">
+              {shop.name}
+            </span>
+            {shop.tagline ? (
+              <span className="block text-[8pt] tracking-wide text-neutral-700">
+                {shop.tagline}
+              </span>
+            ) : null}
+          </span>
           <span className="border border-black px-1.5 text-[7pt] font-semibold tracking-wider uppercase">
             {copyLabel}
           </span>
