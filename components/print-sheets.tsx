@@ -255,12 +255,17 @@ function HeadBand({
       <div className="flex items-baseline justify-between gap-4">
         <div className="flex items-baseline gap-2.5">
           {withLogo ? (
+            /* 11mm, which is the measured height of the ARSU + tagline block
+               beside it (10.94mm). At 8mm the monogram sat short of the text
+               at both ends and read as an afterthought next to it rather than
+               part of the same mark. Still a downscale of the 160px source at
+               any print resolution, so it stays crisp. */
             <img
               src="/logo.png"
               alt=""
               width={135}
               height={160}
-              className="h-[8mm] w-auto shrink-0 self-center"
+              className="h-[11mm] w-auto shrink-0 self-center"
             />
           ) : null}
           {/* The name and what the place is, stacked, exactly as on the
