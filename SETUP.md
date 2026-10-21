@@ -289,7 +289,7 @@ A backup that only exists in the shop is not a backup.
 
 ## The two buttons
 
-Rather than typing, double-click these from `C:\ArsuAtelierpp\scripts`
+Rather than typing, double-click these from `C:\ArsuAtelier\app\scripts`
 (make desktop shortcuts to them):
 
 | | |
