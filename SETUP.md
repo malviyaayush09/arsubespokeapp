@@ -287,6 +287,41 @@ and would fail every night with a permission error. So run
 Before you leave, copy `C:\ArsuAtelier\backups\*.db` onto your own machine.
 A backup that only exists in the shop is not a backup.
 
+## When the shop is down
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File C:\ArsuAtelier\app\scripts\update.ps1 -Repair
+```
+
+One command, and it is safe to run when nothing is wrong. It restores
+whatever a half-finished update left behind, rebuilds if there is nothing to
+restore, checks the database, starts the app, and refuses to claim success
+until the app answers.
+
+**Why it exists.** An update stops the app, moves the working build and the
+working dependencies aside, and puts them back from its own error handler.
+That covers a command that fails. It does not cover the process ceasing to
+exist — a closed window, a Ctrl-C, a lid, a power cut — and then nothing is
+moved back. The shop is left with no build, the startup task restarts the app
+every time, and it dies every time with *"Could not find a production build in
+the .next directory"*, which tells whoever reads it nothing about an update.
+
+That happened, mid `npm ci`, and the shop stayed down.
+
+So `update.ps1` writes `C:\ArsuAtelier\previous\INTERRUPTED.txt` before it
+moves anything, and removes it only once the app has answered. A file survives
+anything that kills a process, so its presence means exactly one thing: the
+last run did not finish. Every later run repairs **before** it does anything
+else — which is the part that matters, because an update that walked past a
+half-finished one would move an already-missing build aside and overwrite the
+one snapshot that could have brought the shop back.
+
+Ctrl-C is caught in the moment as well, since PowerShell runs a `finally`
+block on it. That is the courtesy; the marker file is the guarantee.
+
+The watchdog uses it too: if a restart does not bring the app back, it repairs
+before giving up and asking for a person.
+
 ## Clearing the practice records
 
 The day the shop starts using it for real, whatever was entered while trying
