@@ -287,6 +287,39 @@ and would fail every night with a permission error. So run
 Before you leave, copy `C:\ArsuAtelier\backups\*.db` onto your own machine.
 A backup that only exists in the shop is not a backup.
 
+## The two buttons
+
+Rather than typing, double-click these from `C:\ArsuAtelierpp\scripts`
+(make desktop shortcuts to them):
+
+| | |
+|---|---|
+| `update-now.cmd` | Take the latest version. Says when it is done. |
+| `repair-now.cmd` | The shop is down and nobody knows why. |
+
+They exist because the three things that have ever stopped an update working
+were all typing: the execution policy, the wrong directory, and `-Force` when
+it was not wanted. None of those are decisions - they are the same every time.
+
+Both set `-ExecutionPolicy Bypass` for that one call, pass the root
+explicitly, and keep the window open so the result can be read.
+
+### Should it update by itself?
+
+`update.ps1 -InstallSchedule -At 14:00` registers a daily task, and that is the
+supported way - not a hand-written .bat, which would duplicate the fetch the
+script already does.
+
+**Do not trigger it at startup.** The laptop is off overnight, so a daily
+trigger with `-StartWhenAvailable` fires at the next boot, which is the moment
+he opens the shop. The app would be down for five minutes exactly when the
+first client walks in. Pick an hour he is certainly open but not busy.
+
+And consider not scheduling it at all. A new version exists only when somebody
+changes the code, which happens a handful of times a month and always while
+both people are in contact. An unattended update buys very little and can
+leave the shop down until the watchdog or a person notices.
+
 ## When the shop is down
 
 ```powershell
