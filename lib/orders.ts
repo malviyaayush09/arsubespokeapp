@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, getTableColumns, ne, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
 import { db } from "@/db";
 import {
@@ -157,8 +157,17 @@ export function getOrderFull(orderId: number) {
     .get()!;
 
   const items = db
-    .select()
+    .select({
+      ...getTableColumns(orderItems),
+      /* Presentation only, exactly like the field definitions below: what
+         kind of thing this is decides which controls the order screen draws,
+         because a tie has no fabric source and no tailor. The snapshot on the
+         row still owns the label a printed bill was made from. Null when the
+         type has since been deleted - the item keeps its label regardless. */
+      category: garmentTypes.category,
+    })
     .from(orderItems)
+    .leftJoin(garmentTypes, eq(garmentTypes.id, orderItems.garmentTypeId))
     .where(eq(orderItems.orderId, orderId))
     .orderBy(asc(orderItems.sortOrder), asc(orderItems.id))
     .all();

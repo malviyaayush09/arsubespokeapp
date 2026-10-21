@@ -64,6 +64,17 @@ export const GARMENT_CATEGORIES = [
   "western",
   "mens_ethnic",
   "womens_ethnic",
+  /* Sold WITH the garment rather than cut for it: a tie, a bow, a pocket
+   * square, cufflinks. Each is a line on the bill with a quantity and a price
+   * and no measurements whatsoever - which is precisely what an order item
+   * already is. So they are garment types with no measurement groups, not a
+   * second kind of thing with its own table, its own screens and its own
+   * route to a total.
+   *
+   * No migration is needed: `category` is plain text in SQLite with no CHECK
+   * constraint, so this list is enforced in TypeScript only and adding to it
+   * changes no table. */
+  "accessory",
   "other",
 ] as const;
 export type GarmentCategory = (typeof GARMENT_CATEGORIES)[number];
@@ -72,6 +83,7 @@ export const CATEGORY_LABELS: Record<GarmentCategory, string> = {
   western: "Western",
   mens_ethnic: "Men's Ethnic",
   womens_ethnic: "Women's Ethnic",
+  accessory: "Accessories",
   other: "Other",
 };
 

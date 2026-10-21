@@ -19,6 +19,8 @@ export type GarmentChoice = {
   categoryLabel: string;
   /** The measurement groups this garment needs. */
   groupIds: number[];
+  /** False for a tie, a bow, a pocket square - nothing to measure, ever. */
+  measured: boolean;
 };
 
 export type GroupChoice = {
@@ -261,6 +263,14 @@ export function NewOrderForm({
                   const ready =
                     garment.groupIds.length > 0 &&
                     garment.groupIds.every((id) => onFile[id]);
+                  /* A tie has nothing to measure, so neither "on file" nor
+                     "needs measuring" is true of it. Saying "needs measuring"
+                     under a pocket square would send him looking for a tape. */
+                  const note = !garment.measured
+                    ? "Nothing to measure"
+                    : ready
+                      ? "Measurements on file"
+                      : "Needs measuring";
                   return (
                     <label
                       key={garment.id}
@@ -282,9 +292,7 @@ export function NewOrderForm({
                         <span className="block text-sm font-medium">
                           {garment.name}
                         </span>
-                        <span className="block text-xs text-muted">
-                          {ready ? "Measurements on file" : "Needs measuring"}
-                        </span>
+                        <span className="block text-xs text-muted">{note}</span>
                       </span>
                     </label>
                   );

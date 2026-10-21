@@ -173,6 +173,37 @@ const GARMENTS: GarmentSeed[] = [
   { name: "Shorts", slug: "shorts", category: "western", groups: ["group-lower"] },
   { name: "Dhoti", slug: "dhoti", category: "mens_ethnic", groups: ["group-lower"] },
   { name: "Chudi Pant", slug: "chudi-pant", category: "womens_ethnic", groups: ["group-lower"] },
+
+  /* ── sold with the garment, never measured ───────────────────────────────
+   *
+   * The things written beside the amount that are not stitching: a client
+   * takes the suit and a tie, or the sherwani and a safa, and both belong on
+   * one bill. No groups, so nothing ever asks to measure them.
+   *
+   * Every one is priced at 0 until he sets his own rate. A number invented
+   * here is a number printed on a client's bill.
+   *
+   * Hide whatever the studio does not stock - Shop setup, What we stitch, one
+   * toggle each. Hidden, never deleted, so a tie sold last year stays on last
+   * year's order. */
+  { name: "Tie", slug: "tie", category: "accessory", groups: [] },
+  { name: "Bow", slug: "bow", category: "accessory", groups: [] },
+  { name: "Pocket Square", slug: "pocket-square", category: "accessory", groups: [] },
+  { name: "Cufflinks", slug: "cufflinks", category: "accessory", groups: [] },
+  { name: "Brooch", slug: "brooch", category: "accessory", groups: [] },
+  { name: "Lapel Pin", slug: "lapel-pin", category: "accessory", groups: [] },
+  /* The sash at the waist of a tuxedo or a sherwani. */
+  { name: "Kamarbandh", slug: "kamarbandh", category: "accessory", groups: [] },
+  { name: "Safa", slug: "safa", category: "accessory", groups: [] },
+  { name: "Stole", slug: "stole", category: "accessory", groups: [] },
+  { name: "Shawl", slug: "shawl", category: "accessory", groups: [] },
+  { name: "Dupatta", slug: "dupatta", category: "accessory", groups: [] },
+  /* Contrast buttons and kurta studs, charged by the set. */
+  { name: "Buttons", slug: "buttons", category: "accessory", groups: [] },
+  /* The one across a bandhgala. */
+  { name: "Chain", slug: "chain", category: "accessory", groups: [] },
+  { name: "Belt", slug: "belt", category: "accessory", groups: [] },
+  { name: "Suspenders", slug: "suspenders", category: "accessory", groups: [] },
 ];
 
 /* Invented during the first build and not on his sheet. HIDDEN, never

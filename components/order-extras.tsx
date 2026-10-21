@@ -8,18 +8,33 @@ import {
 } from "@/app/actions/orders";
 import { SubmitButton } from "@/components/forms";
 import { FormError } from "@/components/ui";
+import {
+  CATEGORY_LABELS,
+  GARMENT_CATEGORIES,
+  type GarmentCategory,
+} from "@/db/schema";
 
 export function AddGarmentForm({
   orderId,
   garments,
 }: {
   orderId: number;
-  garments: { id: number; name: string }[];
+  garments: { id: number; name: string; category: GarmentCategory }[];
 }) {
   const [state, formAction] = useActionState<ActionState, FormData>(
     addOrderItem,
     {},
   );
+
+  /* Grouped, because this list is now thirty rows: fifteen garments and
+     fifteen things sold alongside them. A tie is most often added here rather
+     than at the counter - the client picks one at the trial, with the suit in
+     front of him - so it has to be findable without reading every line. */
+  const byCategory = GARMENT_CATEGORIES.map((category) => ({
+    category,
+    label: CATEGORY_LABELS[category],
+    list: garments.filter((g) => g.category === category),
+  })).filter((section) => section.list.length > 0);
 
   return (
     <div className="card p-4">
@@ -27,15 +42,19 @@ export function AddGarmentForm({
       <form action={formAction} className="flex flex-wrap items-end gap-2">
         <input type="hidden" name="orderId" value={orderId} />
         <label className="min-w-48 flex-1">
-          <span className="label">Add another garment</span>
+          <span className="label">Add a garment or something with it</span>
           <select className="field" name="garmentTypeId" defaultValue="">
             <option value="" disabled>
               Choose…
             </option>
-            {garments.map((garment) => (
-              <option key={garment.id} value={garment.id}>
-                {garment.name}
-              </option>
+            {byCategory.map((section) => (
+              <optgroup key={section.category} label={section.label}>
+                {section.list.map((garment) => (
+                  <option key={garment.id} value={garment.id}>
+                    {garment.name}
+                  </option>
+                ))}
+              </optgroup>
             ))}
           </select>
         </label>
@@ -44,7 +63,8 @@ export function AddGarmentForm({
         </SubmitButton>
       </form>
       <p className="mt-1 text-xs text-muted">
-        Saved measurements for this client come across automatically.
+        Saved measurements for this client come across automatically. A tie or a
+        pocket square has none — just a price.
       </p>
     </div>
   );

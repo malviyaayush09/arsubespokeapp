@@ -76,6 +76,12 @@ export default async function NewOrderPage({
     /* Which halves of the body this garment needs. The form uses it to work
        out, from whatever is ticked, which measurements are missing. */
     groupIds: getGroupsFor(type.id).map((g) => g.id),
+    /* Whether there is anything to measure at all. Asked of the data rather
+       than of the category, so a garment carrying only its own fields still
+       counts, and an accessory someone files under Western still does not. */
+    measured:
+      getGroupsFor(type.id).length > 0 ||
+      getOwnMeasurementFields(type.id).length > 0,
   }));
 
   /* Who has been measured, for which half, and when. Two groups and one row

@@ -23,6 +23,9 @@ export type ItemForCard = {
   fabricRatePaise: number;
   lineTotalPaise: number;
   tailorId: number | null;
+  /* What kind of thing this is, from the live type - see lib/orders.ts. Only
+     decides which controls to draw. */
+  category: string | null;
   /* The snapshot, plus the live field definition for drawing the input. See
      the note in lib/orders.ts: the value is history, the dropdown is not. */
   measurements: (OrderItemMeasurement & {
@@ -56,6 +59,16 @@ export function OrderItemCard({
 }) {
   const numbers = item.measurements.filter((m) => m.groupName !== "Style");
   const styleFields = item.measurements.filter((m) => m.groupName === "Style");
+
+  /* A tie is sold, not stitched. It has no measurements, no fabric, nobody
+     assigned to make it and no cutting instructions - so it gets a quantity,
+     a price and a note, and none of the other seven controls. Leaving them on
+     screen invited somebody to set a fabric source for a pocket square.
+  
+     Omitting the inputs is safe rather than destructive: updateOrderItem
+     reads a missing fabric rate as 0, a missing source as the client's own
+     and a missing tailor as unassigned, which is the truth about a tie. */
+  const sold = item.category === "accessory";
 
   const [state, formAction] = useActionState<ActionState, FormData>(
     updateOrderItem,
@@ -173,7 +186,7 @@ export function OrderItemCard({
               </div>
             ) : null}
           </div>
-        ) : (
+        ) : sold ? null : (
           <p className="text-sm text-muted">
             This garment type has no measurement fields configured.
           </p>
@@ -191,7 +204,7 @@ export function OrderItemCard({
             />
           </label>
           <label className="block">
-            <span className="label">Stitching (₹ each)</span>
+            <span className="label">{sold ? "Price (₹ each)" : "Stitching (₹ each)"}</span>
             <input
               className="field tabular-nums"
               name="stitchingRate"
@@ -200,76 +213,90 @@ export function OrderItemCard({
               defaultValue={paiseToInput(item.stitchingRatePaise)}
             />
           </label>
-          <label className="block">
-            <span className="label">Fabric (₹ each)</span>
-            <input
-              className="field tabular-nums"
-              name="fabricRate"
-              type="text"
-              inputMode="decimal"
-              defaultValue={paiseToInput(item.fabricRatePaise)}
-            />
-          </label>
-          <label className="block">
-            <span className="label">Fabric from</span>
-            <select className="field" name="fabricSource" defaultValue={item.fabricSource}>
-              <option value="client">Client&rsquo;s own</option>
-              <option value="shop">Shop</option>
-            </select>
-          </label>
+          {sold ? null : (
+            <>
+              <label className="block">
+                <span className="label">Fabric (₹ each)</span>
+                <input
+                  className="field tabular-nums"
+                  name="fabricRate"
+                  type="text"
+                  inputMode="decimal"
+                  defaultValue={paiseToInput(item.fabricRatePaise)}
+                />
+              </label>
+              <label className="block">
+                <span className="label">Fabric from</span>
+                <select
+                  className="field"
+                  name="fabricSource"
+                  defaultValue={item.fabricSource}
+                >
+                  <option value="client">Client&rsquo;s own</option>
+                  <option value="shop">Shop</option>
+                </select>
+              </label>
+            </>
+          )}
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2">
-          <label className="block">
-            <span className="label">Made by</span>
-            <select
-              className="field"
-              name="tailorId"
-              defaultValue={item.tailorId ? String(item.tailorId) : ""}
-            >
-              <option value="">Not assigned</option>
-              {tailors.map((tailor) => (
-                <option key={tailor.id} value={tailor.id}>
-                  {tailor.name}
-                </option>
-              ))}
-              {/* A garment assigned to someone since made inactive keeps
-                  showing them, so the record does not silently blank. */}
-              {item.tailorId && !tailors.some((t) => t.id === item.tailorId) ? (
-                <option value={item.tailorId}>(previously assigned)</option>
-              ) : null}
-            </select>
-          </label>
+          {sold ? null : (
+            <>
+              <label className="block">
+                <span className="label">Made by</span>
+                <select
+                  className="field"
+                  name="tailorId"
+                  defaultValue={item.tailorId ? String(item.tailorId) : ""}
+                >
+                  <option value="">Not assigned</option>
+                  {tailors.map((tailor) => (
+                    <option key={tailor.id} value={tailor.id}>
+                      {tailor.name}
+                    </option>
+                  ))}
+                  {/* A garment assigned to someone since made inactive keeps
+                      showing them, so the record does not silently blank. */}
+                  {item.tailorId &&
+                  !tailors.some((t) => t.id === item.tailorId) ? (
+                    <option value={item.tailorId}>(previously assigned)</option>
+                  ) : null}
+                </select>
+              </label>
 
+              <label className="block">
+                <span className="label">Fabric notes</span>
+                <input
+                  className="field"
+                  name="fabricNotes"
+                  defaultValue={item.fabricNotes ?? ""}
+                  placeholder="Navy wool, 3.2m"
+                />
+              </label>
+            </>
+          )}
           <label className="block">
-            <span className="label">Fabric notes</span>
-            <input
-              className="field"
-              name="fabricNotes"
-              defaultValue={item.fabricNotes ?? ""}
-              placeholder="Navy wool, 3.2m"
-            />
-          </label>
-          <label className="block">
-            <span className="label">Garment notes</span>
+            <span className="label">{sold ? "Notes" : "Garment notes"}</span>
             <input
               className="field"
               name="itemNotes"
               defaultValue={item.itemNotes ?? ""}
-              placeholder="Working cuffs, no vent"
+              placeholder={sold ? "Navy silk, striped" : "Working cuffs, no vent"}
             />
           </label>
         </div>
 
         <div className="flex flex-wrap items-center gap-2 border-t border-line pt-4">
           <SubmitButton className="btn-primary btn-sm" pendingLabel="Saving…">
-            Save garment
+            {sold ? "Save" : "Save garment"}
           </SubmitButton>
         </div>
       </form>
 
       <div className="mt-2 flex flex-wrap items-center gap-2">
-        <form action={saveAction}>
+        {/* Nothing to copy to a profile when there are no measurements. */}
+        <form action={saveAction} className={sold ? "hidden" : undefined}>
           <input type="hidden" name="orderId" value={orderId} />
           <input type="hidden" name="itemId" value={item.id} />
           <SubmitButton

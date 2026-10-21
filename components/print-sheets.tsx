@@ -417,7 +417,13 @@ export function TailorSheet({
                   <td className="py-1 font-semibold">{item.garmentLabel}</td>
                   <td className="py-1 pr-4 text-right tabular-nums">{item.quantity}</td>
                   <td className="py-1 pr-3 text-[8.5pt]">
-                    {item.fabricSource === "shop" ? "shop" : "client's own"}
+                    {/* Nothing is cut from cloth for a tie, so neither "shop"
+                        nor "client's own" is true of one. */}
+                    {item.category === "accessory"
+                      ? "—"
+                      : item.fabricSource === "shop"
+                        ? "shop"
+                        : "client's own"}
                   </td>
                   <td className="py-1">
                     {style.length > 0 ? (
@@ -615,7 +621,11 @@ export function ShopSheet({ data, shop }: { data: OrderFull; shop: Shop }) {
                   <td className="py-1 font-semibold">{item.garmentLabel}</td>
                   <td className="py-1 pr-4 text-right tabular-nums">{item.quantity}</td>
                   <td className="py-1 pr-3 text-[8pt]">
-                    {item.fabricSource === "shop" ? "shop" : "client's"}
+                    {item.category === "accessory"
+                      ? "—"
+                      : item.fabricSource === "shop"
+                        ? "shop"
+                        : "client's"}
                   </td>
                   <td className="py-1 text-[8pt]">
                     {style.map((m) => `${m.fieldLabel} ${m.valueText}`).join(" · ")}
