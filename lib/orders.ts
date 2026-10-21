@@ -1,4 +1,5 @@
 import { and, asc, desc, eq, ne, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/sqlite-core";
 import { db } from "@/db";
 import {
   clients,
@@ -12,6 +13,11 @@ import {
   payments,
   type OrderStatus,
 } from "@/db/schema";
+
+/* garmentTypes under a second name: a measurement field's owner is itself a
+   garment type (the "Upper body" template), and the same table is already
+   joined elsewhere in these queries as the garment being ordered. */
+const measurementOwner = alias(garmentTypes, "measurement_owner");
 
 /* ── totals ───────────────────────────────────────────────────────────────
  *
@@ -183,11 +189,21 @@ export function getOrderFull(orderId: number) {
         fieldType: measurementFields.fieldType,
         choices: measurementFields.choices,
         groupName: measurementFields.groupName,
+        /* Which half of the body this number belongs to - "Upper body",
+           "Lower body" - taken from the template that owns the field rather
+           than from the up_/lo_ prefix on its code, so renaming a group in
+           Shop setup renames the heading on the printed sheet with it. Null
+           for a field since deleted, exactly like groupName above. */
+        ownerName: measurementOwner.name,
       })
       .from(orderItemMeasurements)
       .leftJoin(
         measurementFields,
         eq(measurementFields.id, orderItemMeasurements.fieldId),
+      )
+      .leftJoin(
+        measurementOwner,
+        eq(measurementOwner.id, measurementFields.garmentTypeId),
       )
       .where(eq(orderItemMeasurements.orderItemId, item.id))
       .orderBy(asc(orderItemMeasurements.sortOrder), asc(orderItemMeasurements.id))

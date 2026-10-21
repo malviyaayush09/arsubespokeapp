@@ -158,91 +158,292 @@ function SignOff({ note }: { note?: string }) {
   );
 }
 
-/* ── tailor ───────────────────────────────────────────────────────────── */
+/* ── the working copies: one page, however many garments ───────────────────
+ *
+ * The tailor and shop copies used to run to two and three pages. Measured on
+ * A4 at 14mm margins - 269mm of usable height - a THREE garment order came to
+ * 304mm. Where it went is the point:
+ *
+ *   letterhead  58.7mm
+ *   order meta  44.4mm   <- 103mm, 38% of the page, before a single garment
+ *   per garment ~50mm each
+ *
+ * And the garments were mostly repetition. Measurements belong to the person,
+ * not the garment: an order for a Pant and a Dhoti printed the same nine
+ * lower-body numbers twice, and six garments would have printed them four or
+ * five times. His own paper sheet never did that - the body is written once
+ * at the top, and the garments are listed below with only what differs.
+ *
+ * So: a header band instead of a letterhead, each distinct set of numbers
+ * printed once under the half of the body it measures, and the garments as a
+ * list of what is actually particular to each - quantity, fabric, pockets,
+ * cuffs. Six garments now sit inside half a page. */
 
-export function TailorSheet({ data, shop }: { data: OrderFull; shop: Shop }) {
+/** The measurements of one body half, and which garments are cut from them. */
+type BodyBlock = {
+  key: string;
+  owner: string;
+  garments: string[];
+  rows: OrderFull["items"][number]["measurements"];
+};
+
+/**
+ * Collapse the per-garment snapshots into one block per distinct set.
+ *
+ * Keyed on the owner AND the values, never on the owner alone. Each garment
+ * carries its own frozen copy, so two can legitimately disagree - a trouser
+ * taken in after a fitting, an older garment repeated from last year's
+ * numbers. When they differ they stay apart, each block naming the garments
+ * it belongs to, because quietly showing one set for both would put a number
+ * on the bench that nobody measured.
+ */
+function bodyBlocks(items: OrderFull["items"]): BodyBlock[] {
+  const blocks = new Map<string, BodyBlock>();
+
+  for (const item of items) {
+    const rows = item.measurements.filter((m) => m.groupName !== "Style");
+    if (rows.length === 0) continue;
+
+    /* Fields a garment owns itself, rather than inheriting from a template,
+       have no owner to group under - fall back to the garment's own name. */
+    const owner = rows[0].ownerName ?? item.garmentLabel;
+    const key =
+      owner +
+      "\u0000" +
+      rows.map((m) => `${m.fieldId}=${m.valueText.trim()}`).join("|");
+
+    const existing = blocks.get(key);
+    if (existing) existing.garments.push(item.garmentLabel);
+    else blocks.set(key, { key, owner, garments: [item.garmentLabel], rows });
+  }
+
+  return [...blocks.values()];
+}
+
+/** The style answers for one garment: pockets, cuffs, collar, bottom. */
+function styleOf(item: OrderFull["items"][number]) {
+  return item.measurements.filter(
+    (m) => m.groupName === "Style" && m.valueText.trim() !== "",
+  );
+}
+
+/* One band, not a letterhead. The name, which copy it is, and the four facts
+   that decide what happens to the garment - who, when it is wanted, when the
+   trial is. The shop's address is not one of them on a working copy. */
+function HeadBand({
+  data,
+  shop,
+  copyLabel,
+  showPhone = false,
+  showStatus = false,
+  /* The monogram stays on the shop's own record, which is a document that
+     gets filed. It costs nothing in height - the band is already as tall as
+     the name - so the only copy without it is the cutting copy, where
+     everything on the sheet should be something the bench needs. */
+  withLogo = false,
+}: {
+  data: OrderFull;
+  shop: Shop;
+  copyLabel: string;
+  showPhone?: boolean;
+  showStatus?: boolean;
+  withLogo?: boolean;
+}) {
+  const { order, client } = data;
   return (
-    <section className="sheet bg-white p-0 text-black">
-      <Letterhead shop={shop} copyLabel="Tailor copy" />
-      <OrderMeta data={data} showStatus showPhone={false} />
+    <header className="mb-2 border-b-2 border-black pb-1.5">
+      <div className="flex items-baseline justify-between gap-4">
+        <div className="flex items-baseline gap-2.5">
+          {withLogo ? (
+            <img
+              src="/logo.png"
+              alt=""
+              width={135}
+              height={160}
+              className="h-[8mm] w-auto shrink-0 self-center"
+            />
+          ) : null}
+          <span className="font-serif text-xl tracking-[0.2em]">{shop.name}</span>
+          <span className="border border-black px-1.5 text-[7pt] font-semibold tracking-wider uppercase">
+            {copyLabel}
+          </span>
+        </div>
+        <div className="flex items-baseline gap-2">
+          <span className="text-[8pt] text-neutral-600">Order</span>
+          <span className="font-mono text-lg font-semibold">{order.orderNo}</span>
+        </div>
+      </div>
 
-      {data.items.map((item, index) => (
-        <div key={item.id} className="keep-together mt-4">
-          <div className="flex items-baseline justify-between border-b border-black pb-1">
-            <h2 className="font-serif text-lg">
-              {index + 1}. {item.garmentLabel}
-              {item.quantity > 1 ? ` × ${item.quantity}` : ""}
-            </h2>
-            <span className="text-[9pt] text-neutral-600">
-              Fabric: {item.fabricSource === "shop" ? "shop" : "client's own"}
+      {/* Every fact on one line, each with its label, so it reads at a glance
+          and costs 5mm instead of 44. */}
+      <div className="mt-1 flex flex-wrap items-baseline gap-x-4 gap-y-0.5 text-[9.5pt]">
+        <span>
+          <span className="text-[8pt] text-neutral-600">Client </span>
+          <span className="font-semibold">{client.name}</span>
+        </span>
+        {showPhone ? (
+          <span className="tabular-nums">
+            <span className="text-[8pt] text-neutral-600">Phone </span>
+            {client.phone}
+          </span>
+        ) : null}
+        {showPhone && client.gstNo ? (
+          <span className="tabular-nums">
+            <span className="text-[8pt] text-neutral-600">GST </span>
+            {client.gstNo}
+          </span>
+        ) : null}
+        <span>
+          <span className="text-[8pt] text-neutral-600">Ordered </span>
+          {formatDate(order.orderDate)}
+        </span>
+        {order.trialDate ? (
+          <span>
+            <span className="text-[8pt] text-neutral-600">Trial </span>
+            <span className="font-semibold">{formatDate(order.trialDate)}</span>
+          </span>
+        ) : null}
+        <span>
+          <span className="text-[8pt] text-neutral-600">Delivery </span>
+          <span className="font-semibold">
+            {order.promisedDate ? formatDate(order.promisedDate) : "—"}
+          </span>
+        </span>
+        {showStatus ? (
+          <span>
+            <span className="text-[8pt] text-neutral-600">Status </span>
+            {STATUS_LABELS[order.status]}
+          </span>
+        ) : null}
+      </div>
+    </header>
+  );
+}
+
+/**
+ * One body half, printed once.
+ *
+ * `big` is the cutting copy: five across on A4 is about 36mm a cell, which
+ * holds a two-digit number and a fraction at 12pt - readable at arm's length
+ * across a bench, which is the whole job of that sheet. The shop's record is
+ * read at a desk, so it packs seven across at 8pt.
+ */
+function BodyMeasurements({ block, big }: { block: BodyBlock; big?: boolean }) {
+  return (
+    <div className="keep-together mt-2">
+      <div className="flex items-baseline justify-between border-b border-black pb-0.5">
+        <h2
+          className={`font-semibold tracking-wide uppercase ${big ? "text-[9.5pt]" : "text-[8.5pt]"}`}
+        >
+          {block.owner}
+        </h2>
+        <span className="text-[8pt] text-neutral-600">
+          {block.garments.join(", ")}
+        </span>
+      </div>
+
+      <div
+        className={`mt-1 grid gap-x-3 ${big ? "grid-cols-5 gap-y-1" : "grid-cols-7 gap-y-0.5"}`}
+      >
+        {block.rows.map((m) => (
+          <div
+            key={m.id}
+            className="flex items-baseline justify-between gap-1 border-b border-neutral-300"
+          >
+            <span
+              className={`shrink leading-tight text-neutral-700 ${big ? "text-[8pt]" : "text-[6.5pt]"}`}
+            >
+              {m.fieldLabel}
+            </span>
+            <span
+              className={`shrink-0 font-semibold tabular-nums ${big ? "text-[12pt]" : "text-[8.5pt]"}`}
+            >
+              {m.valueText.trim() === "" ? (
+                <span className="font-normal text-neutral-400">__</span>
+              ) : (
+                m.valueText
+              )}
             </span>
           </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
-          {item.measurements.length > 0 ? (
-            /* Four across on A4 gives roughly 42mm per cell — wide enough for a
-               two-digit number and a fraction at 13pt, which is legible at
-               arm's length on a cutting table. */
-            <div className="mt-2 grid grid-cols-4 gap-x-4 gap-y-1.5">
-              {item.measurements
-                .filter((m) => m.groupName !== "Style")
-                .map((m) => (
-                <div key={m.id} className="flex items-baseline justify-between border-b border-neutral-300 pb-0.5">
-                  <span className="text-[8.5pt] text-neutral-700">{m.fieldLabel}</span>
-                  <span className="ml-2 text-[13pt] font-semibold tabular-nums">
-                    {m.valueText.trim() === "" ? (
-                      <span className="text-neutral-400">____</span>
-                    ) : (
-                      m.valueText
-                    )}
-                    {m.valueText.trim() !== "" && m.unit ? (
-                      <span className="text-[8pt] font-normal text-neutral-600">
-                        {m.unit === "in" ? '"' : ` ${m.unit}`}
+/* ── tailor ───────────────────────────────────────────────────────────── */
+
+export function TailorSheet({
+  data,
+  shop,
+}: {
+  data: OrderFull;
+  shop: Shop;
+}) {
+  const blocks = bodyBlocks(data.items);
+
+  return (
+    <section className="sheet bg-white p-0 text-black">
+      <HeadBand data={data} shop={shop} copyLabel="Cutting copy" />
+
+      {blocks.map((block) => (
+        <BodyMeasurements key={block.key} block={block} big />
+      ))}
+
+      {/* What is particular to each garment. One row each, so the twelfth
+          garment costs the same 6mm as the first. */}
+      <div className="keep-together mt-3">
+        <table className="w-full text-[9.5pt]">
+          <thead>
+            <tr className="border-y border-black text-[8pt] tracking-wide uppercase">
+              <th className="w-6 py-1 pr-2 text-left font-semibold">#</th>
+              <th className="py-1 text-left font-semibold">Garment</th>
+              <th className="w-10 py-1 pr-4 text-right font-semibold">Qty</th>
+              <th className="w-24 py-1 pr-3 text-left font-semibold">Fabric</th>
+              <th className="py-1 text-left font-semibold">
+                Pockets, cuffs and the rest
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.items.map((item, index) => {
+              const style = styleOf(item);
+              const notes = [item.fabricNotes, item.itemNotes]
+                .filter((n) => n && n.trim() !== "")
+                .join(" · ");
+              return (
+                <tr key={item.id} className="border-b border-neutral-300 align-top">
+                  <td className="py-1 pr-2 tabular-nums">{index + 1}</td>
+                  <td className="py-1 font-semibold">{item.garmentLabel}</td>
+                  <td className="py-1 pr-4 text-right tabular-nums">{item.quantity}</td>
+                  <td className="py-1 pr-3 text-[8.5pt]">
+                    {item.fabricSource === "shop" ? "shop" : "client's own"}
+                  </td>
+                  <td className="py-1">
+                    {style.length > 0 ? (
+                      <span className="flex flex-wrap gap-x-3 gap-y-0.5">
+                        {style.map((m) => (
+                          <span key={m.id}>
+                            <span className="text-[8pt] text-neutral-600">
+                              {m.fieldLabel}{" "}
+                            </span>
+                            <span className="font-semibold">{m.valueText}</span>
+                          </span>
+                        ))}
                       </span>
                     ) : null}
-                  </span>
-                </div>
-                ))}
-            </div>
-          ) : null}
-
-          {/* Pockets, cuffs and the rest - printed in a band across the
-              cutting copy, because this is the half of the instruction that
-              is not a number and the person at the bench needs both. */}
-          {item.measurements.some(
-            (m) => m.groupName === "Style" && m.valueText.trim() !== "",
-          ) ? (
-            <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 border-t border-neutral-300 pt-1.5 text-[10pt]">
-              {item.measurements
-                .filter((m) => m.groupName === "Style" && m.valueText.trim() !== "")
-                .map((m) => (
-                  <span key={m.id}>
-                    <span className="text-[8.5pt] text-neutral-700">
-                      {m.fieldLabel}:{" "}
-                    </span>
-                    <span className="font-semibold">{m.valueText}</span>
-                  </span>
-                ))}
-            </div>
-          ) : null}
-
-          {item.fabricNotes || item.itemNotes ? (
-            <div className="mt-2 text-[9.5pt]">
-              {item.fabricNotes ? (
-                <div>
-                  <span className="text-neutral-600">Fabric: </span>
-                  {item.fabricNotes}
-                </div>
-              ) : null}
-              {item.itemNotes ? (
-                <div>
-                  <span className="text-neutral-600">Notes: </span>
-                  {item.itemNotes}
-                </div>
-              ) : null}
-            </div>
-          ) : null}
-        </div>
-      ))}
+                    {notes ? (
+                      <span className="block text-[8.5pt] text-neutral-700">
+                        {notes}
+                      </span>
+                    ) : null}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
 
       <SignOff note="No pricing on this copy." />
     </section>
@@ -372,46 +573,72 @@ export function ShopSheet({ data, shop }: { data: OrderFull; shop: Shop }) {
 
   return (
     <section className="sheet bg-white p-0 text-black">
-      <Letterhead shop={shop} copyLabel="Shop record" withLogo />
-      <OrderMeta data={data} showStatus />
+      <HeadBand
+        data={data}
+        shop={shop}
+        copyLabel="Shop record"
+        showPhone
+        showStatus
+        withLogo
+      />
 
-      {items.map((item, index) => (
-        <div key={item.id} className="keep-together mt-3">
-          <div className="flex items-baseline justify-between border-b border-black pb-1">
-            <h2 className="font-serif text-base">
-              {index + 1}. {item.garmentLabel}
-              {item.quantity > 1 ? ` × ${item.quantity}` : ""}
-            </h2>
-            <span className="text-[9pt] tabular-nums">
-              ₹{formatPaisePlain(item.lineTotalPaise)}
-            </span>
-          </div>
-
-          {item.measurements.length > 0 ? (
-            <div className="mt-1.5 grid grid-cols-5 gap-x-3 gap-y-0.5 text-[8.5pt]">
-              {item.measurements.map((m) => (
-                <div key={m.id} className="flex justify-between border-b border-neutral-200">
-                  <span className="text-neutral-600">{m.fieldLabel}</span>
-                  <span className="font-semibold tabular-nums">
-                    {m.valueText.trim() === "" ? "—" : m.valueText}
-                  </span>
-                </div>
-              ))}
-            </div>
-          ) : null}
-
-          <div className="mt-1 text-[9pt] text-neutral-700">
-            Fabric: {item.fabricSource === "shop" ? "shop" : "client's own"}
-            {item.fabricNotes ? ` · ${item.fabricNotes}` : ""}
-            {item.itemNotes ? ` · ${item.itemNotes}` : ""}
-            {" · stitching ₹"}
-            {formatPaisePlain(item.stitchingRatePaise)}
-            {item.fabricRatePaise > 0
-              ? ` · fabric ₹${formatPaisePlain(item.fabricRatePaise)}`
-              : ""}
-          </div>
-        </div>
+      {bodyBlocks(items).map((block) => (
+        <BodyMeasurements key={block.key} block={block} />
       ))}
+
+      {/* The garments and the money in one table. This is the sheet that gets
+          filed, so the figures sit next to the thing they were charged for
+          rather than a paragraph below it. */}
+      <div className="keep-together mt-3">
+        <table className="w-full text-[9pt]">
+          <thead>
+            <tr className="border-y border-black text-[7.5pt] tracking-wide uppercase">
+              <th className="w-5 py-1 pr-2 text-left font-semibold">#</th>
+              <th className="py-1 text-left font-semibold">Garment</th>
+              <th className="w-9 py-1 pr-3 text-right font-semibold">Qty</th>
+              <th className="w-16 py-1 pr-3 text-left font-semibold">Fabric</th>
+              <th className="py-1 text-left font-semibold">Details</th>
+              <th className="w-16 py-1 text-right font-semibold">Stitch ₹</th>
+              <th className="w-14 py-1 text-right font-semibold">Cloth ₹</th>
+              <th className="w-16 py-1 text-right font-semibold">Amount ₹</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((item, index) => {
+              const style = styleOf(item);
+              const notes = [item.fabricNotes, item.itemNotes]
+                .filter((n) => n && n.trim() !== "")
+                .join(" · ");
+              return (
+                <tr key={item.id} className="border-b border-neutral-300 align-top">
+                  <td className="py-1 pr-2 tabular-nums">{index + 1}</td>
+                  <td className="py-1 font-semibold">{item.garmentLabel}</td>
+                  <td className="py-1 pr-4 text-right tabular-nums">{item.quantity}</td>
+                  <td className="py-1 pr-3 text-[8pt]">
+                    {item.fabricSource === "shop" ? "shop" : "client's"}
+                  </td>
+                  <td className="py-1 text-[8pt]">
+                    {style.map((m) => `${m.fieldLabel} ${m.valueText}`).join(" · ")}
+                    {style.length > 0 && notes ? " · " : ""}
+                    {notes}
+                  </td>
+                  <td className="py-1 text-right tabular-nums">
+                    {formatPaisePlain(item.stitchingRatePaise)}
+                  </td>
+                  <td className="py-1 text-right tabular-nums">
+                    {item.fabricRatePaise > 0
+                      ? formatPaisePlain(item.fabricRatePaise)
+                      : "—"}
+                  </td>
+                  <td className="py-1 text-right font-semibold tabular-nums">
+                    {formatPaisePlain(item.lineTotalPaise)}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
 
       <div className="keep-together mt-4 flex items-start justify-between gap-8">
         <div className="flex-1 text-[9pt]">
