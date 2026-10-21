@@ -38,7 +38,12 @@ param(
   [string]$At = "02:30",
 
   # Rebuild and restart even if git reports nothing new.
-  [switch]$Force
+  [switch]$Force,
+
+  # Put the shop back up without updating anything: restore the snapshot a
+  # half-finished update left behind, or rebuild from whatever is on disk.
+  # Safe to run at any time, including when nothing is wrong.
+  [switch]$Repair
 )
 
 $ErrorActionPreference = "Stop"
@@ -131,6 +136,98 @@ function Npm-Ci([int]$attempts = 3) {
   return $false
 }
 
+<#
+  -- SURVIVING AN INTERRUPTION --------------------------------------------
+
+  An update stops the app, moves the working build and the working
+  dependencies aside, and only puts them back from its own catch block. That
+  covers a command that fails. It does not cover the process simply ceasing
+  to exist - a closed window, a Ctrl-C at the wrong moment, a laptop lid, a
+  power cut - and then no catch runs, nothing is moved back, and the shop is
+  left with no build at all. The startup task keeps restarting the app and it
+  keeps dying with "Could not find a production build in the .next
+  directory", which says nothing about an update to anyone reading it.
+
+  That happened, mid npm ci, and the shop stayed down.
+
+  A marker file is the fix, because it survives anything that kills a
+  process. It is written before the first destructive step and removed only
+  on success, so its presence on the next run means exactly one thing: a
+  previous run did not finish. The next run - or -Repair, or the watchdog -
+  then puts the snapshot back before doing anything else.
+
+  The order matters: restore the DEPENDENCIES first, then the build. A build
+  without dependencies cannot start, and the restore itself may need to run
+  npm.
+#>
+$hold     = Join-Path $Root "previous"
+$marker   = Join-Path $hold "INTERRUPTED.txt"
+$next     = Join-Path $app ".next"
+$prev     = Join-Path $hold "next-build"
+$mods     = Join-Path $app "node_modules"
+$modsPrev = Join-Path $hold "node_modules"
+
+function Have-Build { Test-Path (Join-Path $next "BUILD_ID") }
+function Have-Deps  { Test-Path (Join-Path $app "node_modules\next\dist\bin\next") }
+
+function Mark-Started {
+  if (-not (Test-Path $hold)) { New-Item -ItemType Directory -Path $hold -Force | Out-Null }
+  Set-Content -Path $marker -Encoding ASCII -Value @(
+    "An update was in progress and did not finish.",
+    "Started: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')",
+    "If this file is still here, the app may have no build.",
+    "Fix it with:  update.ps1 -Repair"
+  )
+}
+function Mark-Finished { Remove-Item $marker -Force -ErrorAction SilentlyContinue }
+
+<#
+  Put the shop back on its feet from whatever is lying around, in order of
+  preference: the snapshot an interrupted update left, then a rebuild. Used
+  by -Repair and by the recovery step at the start of every run.
+#>
+function Repair-App {
+  Log "repairing: restoring what the last run left behind" "Yellow"
+  Stop-App
+
+  if (-not (Have-Deps) -and (Test-Path $modsPrev)) {
+    if (Test-Path $mods) { Remove-Item $mods -Recurse -Force -ErrorAction SilentlyContinue }
+    Move-Item $modsPrev $mods
+    Log "restored the previous dependencies"
+  }
+  if (-not (Have-Deps)) {
+    Log "no usable dependencies - reinstalling" "Yellow"
+    if (-not (Npm-Ci)) { Fail "could not install dependencies - the app cannot start" }
+  }
+
+  if (-not (Have-Build) -and (Test-Path $prev)) {
+    if (Test-Path $next) { Remove-Item $next -Recurse -Force -ErrorAction SilentlyContinue }
+    Move-Item $prev $next
+    Log "restored the previous build"
+  }
+  if (-not (Have-Build)) {
+    <# Nothing to restore - the interruption landed during the build itself,
+       so .next is missing or half written. Build what is on disk. #>
+    Log "no build to restore - building what is on disk" "Yellow"
+    if (Test-Path $next) { Remove-Item $next -Recurse -Force -ErrorAction SilentlyContinue }
+    & npm run build
+    if ($LASTEXITCODE -ne 0 -or -not (Have-Build)) { Fail "build failed - the app cannot start" }
+  }
+
+  <# The schema may be behind or ahead of the code now; db:setup is
+     idempotent and additive, so running it here costs nothing and closes the
+     case where the interruption happened between build and migrate. #>
+  Log "checking the database"
+  & npm run db:setup
+  if ($LASTEXITCODE -ne 0) { Fail "database check failed" }
+
+  Start-ScheduledTask -TaskName $taskName
+  if (-not (Wait-ForApp)) { Fail "repaired, but the app is still not answering" }
+
+  Mark-Finished
+  Log "repaired; the shop is answering" "Green"
+}
+
 # -- schedule mode ---------------------------------------------------------
 if ($InstallSchedule) {
   $admin = ([Security.Principal.WindowsPrincipal] `
@@ -180,6 +277,34 @@ if (-not (Test-Path (Join-Path $app ".git")))         { Fail "$app is not a git 
 Push-Location $app
 try {
   $env:ARSU_DB_PATH = $dbPath
+
+  <#
+    -- 0. finish what a previous run started -------------------------------
+
+    Before anything else, because an update that walks past a half-finished
+    one would move an ALREADY MISSING build aside and overwrite the only
+    snapshot that could have brought the shop back.
+
+    The marker is the signal, not the state of the folders: a run killed
+    between moving the build out and finishing the new one leaves a perfectly
+    plausible-looking app folder with no .next in it.
+  #>
+  if ($Repair -or (Test-Path $marker)) {
+    if (Test-Path $marker) {
+      Log "a previous update did not finish - repairing before going on" "Yellow"
+      Get-Content $marker | ForEach-Object { Log "  $_" "Yellow" }
+    } else {
+      Log "repair requested" "Cyan"
+    }
+
+    Repair-App
+
+    if ($Repair) {
+      Log "=== repair complete ===" "Green"
+      exit 0
+    }
+    Log "repaired - carrying on with the update" "Cyan"
+  }
 
   $before = (& git rev-parse HEAD).Trim()
   Log "currently on $($before.Substring(0,8))"
@@ -238,16 +363,16 @@ try {
     and died with "JavaScript heap out of memory" halfway through an update.
     The same build is fine when they are kept next door.
   #>
-  $hold = Join-Path $Root "previous"
   if (-not (Test-Path $hold)) { New-Item -ItemType Directory -Path $hold -Force | Out-Null }
 
-  $next = Join-Path $app ".next"
-  $prev = Join-Path $hold "next-build"
+  <# The marker goes down BEFORE anything is moved. From here until it is
+     removed, the app may have no build, and the marker is the only thing
+     that will still say so after this process is gone. #>
+  Mark-Started
+
   if (Test-Path $prev) { Remove-Item $prev -Recurse -Force }
   if (Test-Path $next) { Move-Item $next $prev }
 
-  $mods     = Join-Path $app "node_modules"
-  $modsPrev = Join-Path $hold "node_modules"
   if (Test-Path $modsPrev) { Remove-Item $modsPrev -Recurse -Force }
   if (Test-Path $mods) { Move-Item $mods $modsPrev }
 
@@ -272,6 +397,11 @@ try {
     Start-ScheduledTask -TaskName $taskName
 
     if (-not (Wait-ForApp)) { Fail "the app did not come back up" }
+
+    <# Answering, so this run finished. The marker comes off BEFORE the
+       snapshots are discarded: if clearing them fails, the worst case is a
+       stale folder, not a false "interrupted" on the next run. #>
+    Mark-Finished
 
     if (Test-Path $prev)     { Remove-Item $prev -Recurse -Force }
     if (Test-Path $modsPrev) { Remove-Item $modsPrev -Recurse -Force }
@@ -321,10 +451,13 @@ try {
       # Never claim a rollback worked without asking the app.
       if (-not (Wait-ForApp)) { Fail "rolled back, but the app is still not answering" }
 
+      Mark-Finished
       Log "rolled back; the shop is running the previous version and answering" "Yellow"
     }
     catch {
       Log "ROLLBACK FAILED - THE SHOP IS DOWN. Connect and fix it by hand, now." "Red"
+      Log "  Try this first, it does all of the below:" "Red"
+      Log "  update.ps1 -Repair" "Red"
       Log "  cd $app" "Red"
       Log "  git reset --hard $before" "Red"
       Log "  npm ci          (check node_modules\next exists afterwards)" "Red"
@@ -335,4 +468,25 @@ try {
     exit 1
   }
 }
-finally { Pop-Location }
+finally {
+  <#
+    Ctrl-C lands here. PowerShell runs a finally block when a script is
+    interrupted from the keyboard, so this is the one kind of interruption
+    that can still be cleaned up in the moment rather than on the next run.
+
+    Anything more violent - the window closed, the lid shut, the power out -
+    runs nothing at all, which is exactly why the marker file exists. This
+    block is the courtesy; the marker is the guarantee.
+  #>
+  if (Test-Path $marker) {
+    Log "" "Yellow"
+    Log "INTERRUPTED. The app may have no build right now." "Yellow"
+    try {
+      Repair-App
+    } catch {
+      Log "could not repair automatically. Run this, and it will finish the job:" "Red"
+      Log "  powershell -NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`" -Repair" "Red"
+    }
+  }
+  Pop-Location
+}

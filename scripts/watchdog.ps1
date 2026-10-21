@@ -153,7 +153,29 @@ if ($back) {
   exit 0
 }
 
+<#
+  A restart did not help, so the app is not merely stopped - it cannot start.
+  The commonest cause by far is an update that was interrupted: the build was
+  moved aside and never put back, and every restart dies with "Could not find
+  a production build in the .next directory". Restarting that forever is no
+  use to anyone.
+
+  update.ps1 -Repair puts the snapshot back, or rebuilds if there is nothing
+  to put back. It is safe when nothing is wrong, so trying it costs a few
+  minutes of a shop that is already down.
+#>
+$updater = Join-Path $PSScriptRoot "update.ps1"
+if (Test-Path $updater) {
+  Log "a restart did not fix it - trying a repair" "Yellow"
+  & powershell -NoProfile -ExecutionPolicy Bypass -File $updater -Root $Root -Port $Port -Repair
+  if ($LASTEXITCODE -eq 0 -and (Answering)) {
+    Log "repaired and answering again" "Green"
+    exit 0
+  }
+  Log "the repair did not fix it either" "Red"
+}
+
 # This is the line that matters. A human has to look.
-Log "STILL DOWN after a restart. This needs a person - check server.log." "Red"
+Log "STILL DOWN after a restart and a repair. This needs a person." "Red"
 Log "  Get-Content $logs\server.log -Tail 40" "Red"
 exit 1
